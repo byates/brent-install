@@ -1,0 +1,9 @@
+Package: brent-install
+Version: 1.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: snapd, fd-find, ripgrep
+Maintainer: brent.yates@gmail.com
+Description: Installs dotfiles, nvim snap, and runs setup scripts
+

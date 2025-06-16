@@ -1,0 +1,16 @@
+#!/bin/bash
+set -e
+
+# Determine actual user (who ran sudo)
+REAL_USER=${SUDO_USER:-$(logname)}
+USER_HOME=$(eval echo "~$REAL_USER")
+echo "Running setup.sh as $REAL_USER with HOME @ $USER_HOME"
+
+# 1. Install files to home
+cp -r /usr/share/brent-install/dotfiles/. "$USER_HOME"/
+
+# 2. Install snap
+snap install nvim --classic
+
+# 3. Run additional user script; run setup.sh as that user, preserving HOME
+sudo -u "$REAL_USER" HOME="$USER_HOME" bash /usr/share/mypackage/scripts/setup.sh
