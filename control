@@ -3,7 +3,7 @@ Version: 1.0
 Section: utils
 Priority: optional
 Architecture: all
-Depends: snapd, fd-find, ripgrep
+Depends: snapd, fd-find, ripgrep, tree
 Maintainer: brent.yates@gmail.com
 Description: Installs dotfiles, nvim snap, and runs setup scripts
 

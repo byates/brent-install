@@ -17,8 +17,11 @@ find . -print0 | while IFS= read -r -d '' path; do
   [ -e "$DEST_DIR/$path" ] && chown -h "$REAL_USER":"$REAL_USER" "$DEST_DIR/$path"
 done
 
-# 2. Install snap
+# 2. fdfind should be shortened to fd
+ln -s /usr/bin/fdfind /usr/local/bin/fd
+
+# 3. Install snap
 #snap install nvim --classic
 
-# 3. Run additional user script; run setup.sh as that user, preserving HOME
+# 4. Run additional user script; run setup.sh as that user, preserving HOME
 sudo -u "$REAL_USER" HOME="$USER_HOME" bash /usr/share/brent-install/scripts/setup.sh
