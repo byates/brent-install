@@ -21,7 +21,7 @@ done
 ln -s /usr/bin/fdfind /usr/local/bin/fd
 
 # 3. Install snap
-#snap install nvim --classic
+snap install nvim --classic
 
 # 4. Run additional user script; run setup.sh as that user, preserving HOME
 sudo -u "$REAL_USER" HOME="$USER_HOME" bash /usr/share/brent-install/scripts/setup.sh
