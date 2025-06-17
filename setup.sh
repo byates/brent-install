@@ -61,7 +61,8 @@ if ! command -v lazygit &>/dev/null; then
   URL="https://github.com/jesseduffield/lazygit/releases/download/${VERSION}/lazygit_${VERSION#v}_Linux_${PLATFORM}.tar.gz"
   wget -q "$URL" -O /tmp/lazygit.tar.gz
   tar -C /tmp -xzf /tmp/lazygit.tar.gz lazygit
-  sudo mv /tmp/lazygit /usr/local/bin
+  mkdir -p ${HOME}/.local/bin
+  mv /tmp/lazygit ${HOME}/.local/bin
 else
   echo "lazygit already installed"
 fi
