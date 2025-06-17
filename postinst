@@ -18,7 +18,9 @@ find . -print0 | while IFS= read -r -d '' path; do
 done
 
 # 2. fdfind should be shortened to fd
-ln -s /usr/bin/fdfind /usr/local/bin/fd
+if [ ! -f "/usr/local/bin/fd" ]; then
+  ln -s /usr/bin/fdfind /usr/local/bin/fd
+fi
 
 # 3. Install snap
 snap install nvim --classic
