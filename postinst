@@ -7,10 +7,18 @@ USER_HOME=$(eval echo "~$REAL_USER")
 echo "Running setup.sh as $REAL_USER with HOME @ $USER_HOME"
 
 # 1. Install files to home
-cp -r /usr/share/brent-install/dotfiles/. "$USER_HOME"/
+# Copy files (including hidden files) into the user’s home
+SRC_DIR="/usr/share/brent-install/to_home_dir"
+DEST_DIR="$USER_HOME"
+cp -r "$SRC_DIR"/. "$DEST_DIR"/
+# Change ownership of only the files that were just copied
+cd "$SRC_DIR"
+find . -print0 | while IFS= read -r -d '' path; do
+  [ -e "$DEST_DIR/$path" ] && chown -h "$REAL_USER":"$REAL_USER" "$DEST_DIR/$path"
+done
 
 # 2. Install snap
-snap install nvim --classic
+#snap install nvim --classic
 
 # 3. Run additional user script; run setup.sh as that user, preserving HOME
-sudo -u "$REAL_USER" HOME="$USER_HOME" bash /usr/share/mypackage/scripts/setup.sh
+sudo -u "$REAL_USER" HOME="$USER_HOME" bash /usr/share/brent-install/scripts/setup.sh

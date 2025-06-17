@@ -22,7 +22,7 @@ fi
 
 # Append custom bashrc line if not present
 TARGET_FILE="$HOME/.bashrc"
-LINE='if [ -f ${HOME}/.jby_bashrc.sh ]; then . ${HOME}/.jby_bashrc.sh; fi'
+LINE='if [ -f ${HOME}/jby_bashrc.sh ]; then . ${HOME}/jby_bashrc.sh; fi'
 if ! grep -Fxq "$LINE" "$TARGET_FILE"; then
   echo "$LINE" >>"$TARGET_FILE"
 fi
@@ -45,13 +45,11 @@ else
 fi
 
 # Install fzf using official install script
-FZF_PATH=$HOME/.local/
-mkdir -p $FZF_PATH
-if [ ! -d "$FZF_PATH/.fzf" ]; then
-  git clone -q --depth 1 https://github.com/junegunn/fzf.git ${FZF_PATH}/.fzf
-  yes | ${FZF_PATH}/.fzf/install --all # Accept all options: keybindings, completion, update shell rc
+if [ ! -d "$HOME/.fzf" ]; then
+  git clone -q --depth 1 https://github.com/junegunn/fzf.git ${HOME}/.fzf
+  yes | ${HOME}/.fzf/install --all # Accept all options: keybindings, completion, update shell rc
 else
-  echo "fzf already installed at ${FZF_PATH}/.fzf"
+  echo "fzf already installed at ${HOME}/.fzf"
 fi
 
 # Install lazygit
@@ -60,6 +58,7 @@ if ! command -v lazygit &>/dev/null; then
   VERSION=$(curl -s https://api.github.com/repos/jesseduffield/lazygit/releases/latest | grep tag_name | cut -d '"' -f 4)
   URL="https://github.com/jesseduffield/lazygit/releases/download/${VERSION}/lazygit_${VERSION#v}_Linux_${PLATFORM}.tar.gz"
   wget -q "$URL" -O /tmp/lazygit.tar.gz
+  l
   tar -C /tmp -xzf /tmp/lazygit.tar.gz lazygit
   sudo mv /tmp/lazygit /usr/local/bin
 else

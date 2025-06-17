@@ -12,7 +12,7 @@ prepare:
 	@echo "Creating directory structure..."
 	rm -rf $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/DEBIAN
-	mkdir -p $(BUILD_DIR)/usr/share/$(PACKAGE_NAME)/dotfiles
+	mkdir -p $(BUILD_DIR)/usr/share/$(PACKAGE_NAME)/to_home_dir
 	mkdir -p $(BUILD_DIR)/usr/share/$(PACKAGE_NAME)/scripts
 
 	@echo "Copying control file and scripts..."
@@ -20,8 +20,9 @@ prepare:
 	cp postinst $(BUILD_DIR)/DEBIAN/postinst
 	chmod 755 $(BUILD_DIR)/DEBIAN/postinst
 
-	@echo "Copying dotfiles and setup script..."
-	-@cp -r dotfiles/. $(BUILD_DIR)/usr/share/$(PACKAGE_NAME)/dotfiles/ 2>/dev/null || true
+	@echo "Copying files and setup script..."
+	-@cp -r to_home_dir/. $(BUILD_DIR)/usr/share/$(PACKAGE_NAME)/to_home_dir/ 2>/dev/null || true
+	-@cp -r to_usr_bin/.  $(BUILD_DIR)/usr/share/$(PACKAGE_NAME)/scripts/ 2>/dev/null || true
 	cp setup.sh $(BUILD_DIR)/usr/share/$(PACKAGE_NAME)/scripts/
 
 clean:

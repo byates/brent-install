@@ -5,7 +5,7 @@
 # if [ -f ~/jby_bashrc.sh ]; then . ~/jby_bashrc.sh; fi
 #
 PS1='\n\[\e[01;36m\]\u \[\e[0m\]on \[\e[01;33m\]\h \[\e[0m\]in \[\e[01;34m\]\w\[\e[0m\]\n$ '
-export TERM=xterm-256color
+export TERM=tmux-256color
 export HISTSIZE=2000
 export HISTFILESIZE=2000
 export HISTIGNORE="&:[ ]*:exit:ls:la:ll:lll:history:env sh /tmp/Microsoft-MIEngine-Cmd*"
