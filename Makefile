@@ -44,20 +44,21 @@ update:
 	wget -q --show-progress https://gist.githubusercontent.com/byates/d04215a3dc88cf47015fea28d419e64e/raw/.vimrc -O ./to_home_dir/.vimrc
 	wget -q --show-progress https://gist.githubusercontent.com/byates/d04215a3dc88cf47015fea28d419e64e/raw/jby_bashrc.sh -O ./to_home_dir/.jby_bashrc.sh
 	wget -q --show-progress https://gist.githubusercontent.com/byates/dd4f8dc9069c15f7cb2179df4dca78bc/raw/.gitconfig.inc -O ./to_home_dir/.gitconfig.inc
+	wget -q --show-progress https://gist.githubusercontent.com/byates/d049f99a8e24cdcaf87752be414a18de/raw/force-clean-repo.sh -O ./to_home_dir/force-clean-repo.sh
 
-	wget -q --show-progress https://gist.githubusercontent.com/byates/d049f99a8e24cdcaf87752be414a18de/raw/force-clean-repo.sh -O ./to_scripts/force-clean-repo.sh
+	chmod +x ./to_home_dir/force-clean-repo.sh
+
 	wget -q --show-progress https://gist.githubusercontent.com/byates/b6ded34f2c7436cac9898d92abb8a0d1/raw/test-24-bit-color.sh -O ./to_scripts/test-24-bit-color.sh
 	wget -q --show-progress https://gist.githubusercontent.com/byates/40ba3a7d1e2572b17b3b6616e77a288e/raw/install-build-tools.sh -O ./to_scripts/install-build-tools.sh
-	wget -q --show-progress https://gist.githubusercontent.com/byates/cbb356377ed4ba4988940595e4e7789c/raw/install_gtest.sh -O ./to_scripts/install_gtest.sh
+	wget -q --show-progress https://gist.githubusercontent.com/byates/cbb356377ed4ba4988940595e4e7789c/raw/install-gtest.sh -O ./to_scripts/install-gtest.sh
 	wget -q --show-progress https://gist.githubusercontent.com/byates/9a41343ec02beb86fbdb22c7a4f8794e/raw/install-dpdk.sh -O ./to_scripts/install-dpdk.sh
-	wget -q --show-progress https://gist.githubusercontent.com/byates/4db079efc48db2e913ac75df5000d577/raw/assign-huge-pages.sh -O ./to_scripts/assign-huge-pages.sh
+	wget -q --show-progress https://gist.githubusercontent.com/byates/4db079efc48db2e913ac75df5000d577/raw/install-huge-pages.sh -O ./to_scripts/install-huge-pages.sh
 
-	chmod +x ./to_scripts/force-clean-repo.sh
 	chmod +x ./to_scripts/test-24-bit-color.sh
 	chmod +x ./to_scripts/install-build-tools.sh
-	chmod +x ./to_scripts/install_gtest.sh
+	chmod +x ./to_scripts/install-gtest.sh
 	chmod +x ./to_scripts/install-dpdk.sh
-	chmod +x ./to_scripts/assign-huge-pages.sh
+	chmod +x ./to_scripts/install-huge-pages.sh
 
 .PHONY: help all build prepare clean update
 
