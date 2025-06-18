@@ -15,4 +15,10 @@ jobs:
 
     - name: Install dependencies
       run: make build
-
+      
+    - name: Create Release and Upload .deb
+      uses: softprops/action-gh-release@v1
+      with:
+        files: brent-install_*.deb # Replace with the actual file name or pattern of your .deb
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
