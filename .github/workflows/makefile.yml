@@ -1,19 +1,31 @@
 name: Makefile CI
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Important! Needed to get tags
 
-    - name: Install dependencies
-      run: make build
+      - name: Build .deb package
+        run: make build
 
+      - name: Get current Git tag
+        id: get_tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          echo "Found tag: $TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release with .deb asset
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.get_tag.outputs.tag }}
+          artifacts: brent-install_*.deb
+          token: ${{ secrets.GITHUB_TOKEN }}
