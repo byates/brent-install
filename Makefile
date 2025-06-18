@@ -9,7 +9,7 @@ help:
 	@echo "  update     Download latest config and script files"
 
 PACKAGE_NAME := brent-install
-VERSION := 1.0
+VERSION := 1.0.0
 BUILD_DIR := $(PACKAGE_NAME)
 DEB_FILE := $(PACKAGE_NAME)_$(VERSION).deb
 
