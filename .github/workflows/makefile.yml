@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*' # Trigger on pushes to tags starting with 'v'
+  workflow_dispatch:
 
 jobs:
   build:
