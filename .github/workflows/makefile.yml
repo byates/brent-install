@@ -32,3 +32,6 @@ jobs:
           tag: ${{ steps.get_tag.outputs.tag }}
           artifacts: brent-install_*.deb
           token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          replacesArtifacts: true
+
