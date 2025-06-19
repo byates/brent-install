@@ -5,7 +5,6 @@
 # if [ -f ~/jby_bashrc.sh ]; then . ~/jby_bashrc.sh; fi
 #
 PS1='\n\[\e[01;36m\]\u \[\e[0m\]on \[\e[01;33m\]\h \[\e[0m\]in \[\e[01;34m\]\w\[\e[0m\]\n$ '
-export TERM=tmux-256color
 export HISTSIZE=2000
 export HISTFILESIZE=2000
 export HISTIGNORE="&:[ ]*:exit:ls:la:ll:lll:history:env sh /tmp/Microsoft-MIEngine-Cmd*"
@@ -30,44 +29,44 @@ export loc_linux_kernel=/usr/src/kernels/$(basename $(uname -r) -generic)
 SSH_ENV="$HOME/.ssh/environment"
 
 function start_agent {
-    echo "Initialising new SSH agent..."
-    /usr/bin/ssh-agent | sed 's/^echo/#echo/' > "${SSH_ENV}"
-    chmod 600 "${SSH_ENV}"
-    . "${SSH_ENV}" > /dev/null
-    /usr/bin/ssh-add;
+  echo "Initialising new SSH agent..."
+  /usr/bin/ssh-agent | sed 's/^echo/#echo/' >"${SSH_ENV}"
+  chmod 600 "${SSH_ENV}"
+  . "${SSH_ENV}" >/dev/null
+  /usr/bin/ssh-add
 }
 
 # Source SSH settings, if applicable
 
 if [ -f "${SSH_ENV}" ]; then
-    . "${SSH_ENV}" > /dev/null
-    #ps ${SSH_AGENT_PID} doesn't work under cywgin
-    ps -ef | grep ${SSH_AGENT_PID} | grep ssh-agent$ > /dev/null || {
-        start_agent;
-    }
+  . "${SSH_ENV}" >/dev/null
+  #ps ${SSH_AGENT_PID} doesn't work under cywgin
+  ps -ef | grep ${SSH_AGENT_PID} | grep ssh-agent$ >/dev/null || {
+    start_agent
+  }
 else
-    start_agent;
+  start_agent
 fi
 
-major=$(cat /etc/centos-release 2>/dev/null | tr -dc '0-9.'|cut -d \. -f1)
+major=$(cat /etc/centos-release 2>/dev/null | tr -dc '0-9.' | cut -d \. -f1)
 if [ -f /etc/centos-release ] && [ $major == "7" ]; then
-    # ansible logs in as a 'dumb' terminal. Let's not add tmux on top of it.
-    if [ "$TERM" != "dumb" ]; then
-        source scl_source enable devtoolset-8 llvm-toolset-7.0
-    fi
+  # ansible logs in as a 'dumb' terminal. Let's not add tmux on top of it.
+  if [ "$TERM" != "dumb" ]; then
+    source scl_source enable devtoolset-8 llvm-toolset-7.0
+  fi
 fi
 
 # lauch shell as tmux session
-if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
-    if [ "$TERM_PROGRAM" == "vscode" ]; then
-        echo "vscode dectected. running standard shell."
-    else
-        # ansible logs in as a 'dumb' terminal. Let's not add tmux on top of it.
-        if [ "$TERM" != "dumb" ]; then
-            echo "tmux sessions:"
-            tmux ls
-        fi
+if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+  if [ "$TERM_PROGRAM" == "vscode" ]; then
+    echo "vscode dectected. running standard shell."
+  else
+    # ansible logs in as a 'dumb' terminal. Let's not add tmux on top of it.
+    if [ "$TERM" != "dumb" ]; then
+      echo "tmux sessions:"
+      tmux ls
     fi
+  fi
 fi
 
 # DPDK STUFF
