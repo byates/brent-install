@@ -92,6 +92,9 @@ if [ ! -f /etc/vpp/vcl.conf ]; then
   sudo ln -sf ~/vpp-scripts/vcl.conf /etc/vpp/vcl.conf
 fi
 
+# must create this or vpp throws and error
+sudo mkdir -p /var/log/vpp
+
 echo "-----------------------------------------"
 echo "VPP installed"
 echo "-----------------------------------------"
