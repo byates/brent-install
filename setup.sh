@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Get directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Detect architecture
 ARCH=$(uname -m)
 if [[ "$ARCH" == "x86_64" ]]; then
@@ -70,4 +73,7 @@ fi
 # Set up nvim
 if [ ! -d "${HOME}/.config/nvim" ]; then
   git clone -q https://github.com/LazyVim/starter ${HOME}/.config/nvim
+  # Copy our customer config files to the nvim setup directory
+  cp ${SCRIPT_DIR}/nvim_lua_config_options.lua ${HOME}/.config/nvim/lua/config/options.lua
+  cp ${SCRIPT_DIR}/nvim_lua_plugins_grug-keymaps.lua ${HOME}/.config/nvim/lua/plugins/gurg-keymap.lua
 fi
