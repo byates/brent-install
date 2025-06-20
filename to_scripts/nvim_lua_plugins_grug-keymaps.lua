@@ -1,6 +1,6 @@
 return {
 	{
-		"nvim-pack/grug-far.nvim",
+		"MagicDuck/grug-far.nvim",
 		keys = {
 			{
 				"<leader>rw",
