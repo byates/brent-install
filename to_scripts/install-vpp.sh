@@ -74,6 +74,7 @@ if [ ! -d vpp-scripts ]; then
     exit 1
   fi
   cp vpp-scripts/startup.conf.example startup.conf
+  cp vpp-scripts/startup_cmds.vpp startup_cmds.vpp
   # Replace USER placeholder with actual username
   sed -i "s/\bUSER\b/$USER/g" startup.conf || {
     echo "ERROR: Failed to replace USER in startup.conf"
