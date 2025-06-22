@@ -78,15 +78,21 @@ else
 fi
 cd ~
 if [ ! -f startup.conf ]; then
+  echo "Instaling VPP startup.conf into HOME"
   cp vpp-scripts/startup.conf.example startup.conf
   # Replace USER placeholder with actual username
   sed -i "s/\bUSER\b/$USER/g" startup.conf || {
     echo "ERROR: Failed to replace USER in startup.conf"
     exit 1
   }
+else
+  echo "Skipping install of startup.conf because it already exists in HOME"
 fi
 if [ ! -f startup_cmds.vpp ]; then
+  echo "Instaling VPP startup_cmds into HOME"
   cp vpp-scripts/startup_cmds.vpp startup_cmds.vpp
+else
+  echo "Skipping install of startup_cmds.vpp because it already exists in HOME"
 fi
 
 if [ ! -f ~/vppctl ]; then
@@ -94,8 +100,11 @@ if [ ! -f ~/vppctl ]; then
 fi
 
 if [ ! -f /etc/vpp/vcl.conf ]; then
+  echo "Installing vcl.conf to /etc/vpp"
   sudo mkdir -p /etc/vpp
   sudo ln -sf ~/vpp-scripts/vcl.conf /etc/vpp/vcl.conf
+else
+  echo "Skipping install of vcl.conf because it already exists in /etc/vpp"
 fi
 
 # must create this or vpp throws and error
