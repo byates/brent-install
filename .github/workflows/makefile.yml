@@ -1,6 +1,7 @@
-name: Makefile CI
+name: Build package on push
 
 on:
+  push:
   workflow_dispatch:
 
 permissions:
