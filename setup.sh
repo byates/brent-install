@@ -48,13 +48,13 @@ else
 fi
 
 # Install fzf using official install script
-FZF_PATH=$HOME/.local/
+FZF_PATH=$HOME/.local/.fzf
 mkdir -p $FZF_PATH
-if [ ! -d "$FZF_PATH/.fzf" ]; then
-  git clone -q --depth 1 https://github.com/junegunn/fzf.git ${FZF_PATH}/.fzf
-  yes | ${FZF_PATH}/.fzf/install --all # Accept all options: keybindings, completion, update shell rc
+if [ ! -d "$FZF_PATH" ]; then
+  git clone -q --depth 1 https://github.com/junegunn/fzf.git ${FZF_PATH}
+  yes | ${FZF_PATH}/install --all # Accept all options: keybindings, completion, update shell rc
 else
-  echo "fzf already installed at ${FZF_PATH}/.fzf"
+  echo "fzf already installed at ${FZF_PATH}"
 fi
 
 # Install lazygit
