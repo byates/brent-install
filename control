@@ -3,7 +3,7 @@ Version: 1.0
 Section: utils
 Priority: optional
 Architecture: all
-Depends: snapd, fd-find, ripgrep, tree, build-essential, ninja-build, clang, clang-format, clangd, npm
+Depends: snapd, fd-find, ripgrep, tree, build-essential, ninja-build, clang, clang-format, clangd
 Maintainer: brent.yates@gmail.com
 Description: Installs dotfiles, nvim snap, and runs setup scripts
 

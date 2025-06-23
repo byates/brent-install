@@ -18,6 +18,10 @@ fi
 echo "Running setup as: $(whoami) @ $HOME on $PLATFORM"
 mkdir -p "$HOME/.config"
 
+# Install node via nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.bashrc
+
 # Clone TPM and config files
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
   git clone -q https://github.com/tmux-plugins/tpm ${HOME}/.tmux/plugins/tpm

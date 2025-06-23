@@ -22,7 +22,7 @@ if [ ! -f "/usr/local/bin/fd" ]; then
   ln -s /usr/bin/fdfind /usr/local/bin/fd
 fi
 
-# 3. Install snap
+# 3. Install nvim via snap
 snap install nvim --classic
 
 # 4. Run additional user script; run setup.sh as that user, preserving HOME
