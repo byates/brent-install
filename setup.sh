@@ -80,4 +80,5 @@ if [ ! -d "${HOME}/.config/nvim" ]; then
   # Copy our customer config files to the nvim setup directory
   cp ${SCRIPT_DIR}/nvim_lua_config_options.lua ${HOME}/.config/nvim/lua/config/options.lua
   cp ${SCRIPT_DIR}/nvim_lua_plugins_grug-keymaps.lua ${HOME}/.config/nvim/lua/plugins/gurg-keymap.lua
+  cp ${SCRIPT_DIR}/nvim_lua_plugins_theme.lua ${HOME}/.config/nvim/lua/plugins/theme.lua
 fi
