@@ -82,3 +82,9 @@ if [ ! -d "${HOME}/.config/nvim" ]; then
   cp ${SCRIPT_DIR}/nvim_lua_plugins_grug-keymaps.lua ${HOME}/.config/nvim/lua/plugins/gurg-keymap.lua
   cp ${SCRIPT_DIR}/nvim_lua_plugins_theme.lua ${HOME}/.config/nvim/lua/plugins/theme.lua
 fi
+
+# UV Manages python environments
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Startship makes our terminal prompts flashy
+curl -sS https://starship.rs/install.sh | sh
