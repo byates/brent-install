@@ -87,4 +87,4 @@ fi
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Startship makes our terminal prompts flashy
-curl -sS https://starship.rs/install.sh | sh
+curl -sS https://starship.rs/install.sh | sh -s -- -b ~/.local/bin
