@@ -18,9 +18,19 @@ fi
 echo "Running setup as: $(whoami) @ $HOME on $PLATFORM"
 mkdir -p "$HOME/.config"
 
-# Install node via nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-source ~/.bashrc
+# Install node via nvm (fetch latest version)
+NVM_LATEST=$(curl -s https://api.github.com/repos/nvm-sh/nvm/releases/latest | grep '"tag_name"' | cut -d '"' -f 4)
+echo "Installing nvm ${NVM_LATEST}..."
+curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_LATEST}/install.sh" | bash
+
+# Load nvm and install latest LTS node
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm install --lts
+nvm use --lts
+
+# Install global npm packages
+npm install -g prettier
 
 # Clone TPM and config files
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
@@ -74,7 +84,21 @@ else
   echo "lazygit already installed"
 fi
 
-# Set up nvim
+# Build and install nvim from source
+NVIM_DIR="${HOME}/tools/neovim"
+if [ ! -d "${NVIM_DIR}" ]; then
+  echo "Cloning and building Neovim from source..."
+  mkdir -p "${HOME}/tools"
+  git clone -q https://github.com/neovim/neovim "${NVIM_DIR}"
+  cd "${NVIM_DIR}"
+  make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX="${HOME}/.local"
+  make install
+  cd "${SCRIPT_DIR}"
+else
+  echo "Neovim source already exists at ${NVIM_DIR}"
+fi
+
+# Set up nvim config
 if [ ! -d "${HOME}/.config/nvim" ]; then
   git clone -q https://github.com/LazyVim/starter ${HOME}/.config/nvim
   # Copy our customer config files to the nvim setup directory

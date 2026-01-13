@@ -22,8 +22,8 @@ if [ ! -f "/usr/local/bin/fd" ]; then
   ln -s /usr/bin/fdfind /usr/local/bin/fd
 fi
 
-# 3. Install nvim via snap
-snap install nvim --classic
+# 3. Install rustup via snap
+snap install rustup --classic
 
 # 4. Run additional user script; run setup.sh as that user, preserving HOME
 sudo -u "$REAL_USER" HOME="$USER_HOME" bash /usr/share/brent-install/scripts/setup.sh
