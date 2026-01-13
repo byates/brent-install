@@ -4,6 +4,6 @@
 git reset --hard
 git submodule sync --recursive
 git submodule update --init --force --recursive
+git submodule foreach --recursive git checkout HEAD -- .
 git clean -ffdx
 git submodule foreach --recursive git clean -ffdx
-
