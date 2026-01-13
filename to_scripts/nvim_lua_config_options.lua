@@ -3,3 +3,5 @@
 -- Add any additional options here
 
 vim.opt.clipboard = "unnamed"
+vim.opt.background = "dark"
+vim.opt.autoread = true

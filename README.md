@@ -13,10 +13,11 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
 - `build-essential`, `ninja-build`, `clang`, `clang-format`, `clangd` - C/C++ toolchain
 - `cmake`, `gettext` - Build dependencies for Neovim
 - `net-tools` - Network utilities (ifconfig, netstat, etc.)
+- `luarocks` - Lua package manager (for Neovim plugins)
 
 ### CLI Tools (installed by setup script)
 
-- **Neovim** - Built from source (`~/tools/neovim`), installed to `~/.local`, with LazyVim starter config
+- **Neovim** - Built from source (`~/tools/neovim`), installed to `~/.local`, with LazyVim and custom plugins
 - **fzf** - Fuzzy finder
 - **lazygit** - Terminal UI for git
 - **nvm + Node.js** - Latest nvm with LTS Node.js

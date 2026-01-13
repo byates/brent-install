@@ -22,6 +22,7 @@ sudo apt update -qq -y
 sudo apt -y install build-essential ninja-build libtool autoconf pkg-config libibverbs-dev libnuma-dev libssl-dev libcurl4-openssl-dev meson
 sudo apt -y install postgresql postgresql-contrib libpcap-dev python3-pyelftools gettext libsystemd-dev
 sudo apt -y install dh-make clang clang-format ripgrep zip unzip flex byacc libdw-dev libbfd-dev libdwarf-dev
+sudo apt -y install googletest googlemock libgtest-dev libgmock-dev libarchive-dev
 
 # ----------------------------
 # Install latest CMake version

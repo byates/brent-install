@@ -101,11 +101,18 @@ fi
 # Set up nvim config
 if [ ! -d "${HOME}/.config/nvim" ]; then
   git clone -q https://github.com/LazyVim/starter ${HOME}/.config/nvim
-  # Copy our customer config files to the nvim setup directory
-  cp ${SCRIPT_DIR}/nvim_lua_config_options.lua ${HOME}/.config/nvim/lua/config/options.lua
-  cp ${SCRIPT_DIR}/nvim_lua_plugins_grug-keymaps.lua ${HOME}/.config/nvim/lua/plugins/gurg-keymap.lua
-  cp ${SCRIPT_DIR}/nvim_lua_plugins_theme.lua ${HOME}/.config/nvim/lua/plugins/theme.lua
 fi
+# Copy our custom config files to the nvim setup directory (always update)
+cp ${SCRIPT_DIR}/nvim_lua_config_options.lua ${HOME}/.config/nvim/lua/config/options.lua
+cp ${SCRIPT_DIR}/nvim_lua_config_keymaps.lua ${HOME}/.config/nvim/lua/config/keymaps.lua
+cp ${SCRIPT_DIR}/nvim_lua_plugins_grug-keymaps.lua ${HOME}/.config/nvim/lua/plugins/grug-keymap.lua
+cp ${SCRIPT_DIR}/nvim_lua_plugins_theme.lua ${HOME}/.config/nvim/lua/plugins/theme.lua
+cp ${SCRIPT_DIR}/nvim_lua_plugins_themery.lua ${HOME}/.config/nvim/lua/plugins/themery.lua
+cp ${SCRIPT_DIR}/nvim_lua_plugins_bufferline.lua ${HOME}/.config/nvim/lua/plugins/bufferline.lua
+cp ${SCRIPT_DIR}/nvim_lua_plugins_cmp.lua ${HOME}/.config/nvim/lua/plugins/cmp.lua
+cp ${SCRIPT_DIR}/nvim_lua_plugins_formatting.lua ${HOME}/.config/nvim/lua/plugins/formatting.lua
+cp ${SCRIPT_DIR}/nvim_lua_plugins_git.lua ${HOME}/.config/nvim/lua/plugins/git.lua
+cp ${SCRIPT_DIR}/nvim_lua_plugins_image.lua ${HOME}/.config/nvim/lua/plugins/image.lua
 
 # UV Manages python environments
 curl -LsSf https://astral.sh/uv/install.sh | sh
