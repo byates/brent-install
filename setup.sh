@@ -31,6 +31,11 @@ nvm use --lts
 
 # Install global npm packages
 npm install -g prettier
+npm install -g @abdo-el-mobayad/claude-code-fast-permission-hook
+echo "Run 'cf-approve install && cf-approve config' to set the permission hook (after claude install)"
+echo "Run 'npx ccstatusline@latest' to set the claude status line"
+echo "Run 'cp /usr/share/brent-install/to_scripts/ccstatusline/settings.json ~/.config/ccstatusline/'"
+echo "    to set the claude status line"
 
 # Clone TPM and config files
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
