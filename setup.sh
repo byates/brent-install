@@ -124,3 +124,67 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Startship makes our terminal prompts flashy
 curl -sS https://starship.rs/install.sh | sh -s -- -b ~/.local/bin
+
+#------------------------------------------------------------
+# gstack + gbrain (knowledge brain / agent tooling)
+#
+# Both are PUBLIC repos (clone over HTTPS, no SSH key needed). gbrain installs
+# from its git repo via bun — NOT from npm (the npm "gbrain" is an unrelated
+# package). The DB credential is never committed; it's hydrated from Azure KV.
+# These steps are best-effort: a transient failure warns but doesn't abort setup.
+#------------------------------------------------------------
+
+# bun runtime (required by gbrain + gstack)
+if ! command -v bun &>/dev/null; then
+  echo "Installing bun..."
+  curl -fsSL https://bun.sh/install | bash || echo "WARN: bun install failed"
+fi
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
+# gbrain CLI (from the public git repo, via bun global)
+if command -v bun &>/dev/null && ! command -v gbrain &>/dev/null; then
+  echo "Installing gbrain..."
+  bun add -g github:garrytan/gbrain || echo "WARN: gbrain install failed"
+fi
+
+# gstack (public; clone over HTTPS, then run its setup)
+GSTACK_DIR="$HOME/.claude/skills/gstack"
+if [ ! -d "$GSTACK_DIR/.git" ]; then
+  echo "Installing gstack..."
+  mkdir -p "$(dirname "$GSTACK_DIR")"
+  if git clone -q https://github.com/garrytan/gstack.git "$GSTACK_DIR"; then
+    (cd "$GSTACK_DIR" && ./setup) || echo "WARN: gstack ./setup failed"
+  else
+    echo "WARN: gstack clone failed"
+  fi
+else
+  echo "gstack already installed at $GSTACK_DIR"
+fi
+
+# Hydrate the gbrain DB URL from Azure Key Vault (no-op if already present;
+# needs `az login` first — warns rather than failing the provision).
+if [ -x "$HOME/.gbrain/refresh-gbrain-db-url.sh" ]; then
+  "$HOME/.gbrain/refresh-gbrain-db-url.sh" \
+    || echo "WARN: could not hydrate gbrain DB URL — run 'az login' then '~/.gbrain/refresh-gbrain-db-url.sh --force'"
+fi
+
+# Register gbrain as an MCP server for Claude Code, with the connection-pool cap.
+# Conditional: claude isn't installed by this package. Idempotent (re-add).
+if command -v claude &>/dev/null; then
+  echo "Registering gbrain MCP server (GBRAIN_POOL_SIZE=2)..."
+  claude mcp remove gbrain -s user &>/dev/null || true
+  claude mcp add gbrain -s user -e GBRAIN_POOL_SIZE=2 -- "$(command -v gbrain || echo gbrain)" serve \
+    || echo "WARN: 'claude mcp add gbrain' failed — register manually later"
+else
+  echo "claude not found; skipping gbrain MCP registration (run it after installing Claude Code)."
+fi
+
+# Apply the systemd pool-size drop-ins shipped in to_home_dir (best-effort:
+# user systemd may be unavailable during package install — they apply on login).
+systemctl --user daemon-reload &>/dev/null || true
+
+echo ""
+echo "gstack/gbrain step done. To finish gbrain: ensure 'az login', run"
+echo "  ~/.gbrain/refresh-gbrain-db-url.sh --force && gbrain doctor"
+echo "and reconnect the gbrain MCP server in Claude Code (/mcp) so the pool cap takes effect."
