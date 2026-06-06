@@ -1,9 +1,9 @@
 Package: brent-install
-Version: 1.0
+Version: 1.1.0
 Section: utils
 Priority: optional
 Architecture: all
-Depends: snapd, fd-find, ripgrep, tree, build-essential, ninja-build, clang, clang-format, clangd, cmake, gettext, net-tools, luarocks
+Depends: snapd, fd-find, ripgrep, tree, build-essential, ninja-build, clang, clang-format, clangd, cmake, gettext, net-tools, luarocks, git, curl, jq
 Maintainer: brent.yates@gmail.com
-Description: Installs dotfiles, nvim (built from source), and runs setup scripts
+Description: Installs dotfiles, nvim (built from source), gstack/gbrain tooling, and runs setup scripts
 

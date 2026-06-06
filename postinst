@@ -25,5 +25,15 @@ fi
 # 3. Install rustup via snap
 snap install rustup --classic
 
-# 4. Run additional user script; run setup.sh as that user, preserving HOME
+# 4. Install Azure CLI (needed by ~/.gbrain/refresh-*.sh to hydrate secrets from
+#    Key Vault). Not available in stock Ubuntu repos, so it can't be an apt
+#    Depends — install via Microsoft's script. Idempotent: skip if present.
+if ! command -v az >/dev/null 2>&1; then
+  echo "Installing Azure CLI..."
+  curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+else
+  echo "Azure CLI already installed; skipping."
+fi
+
+# 5. Run additional user script; run setup.sh as that user, preserving HOME
 sudo -u "$REAL_USER" HOME="$USER_HOME" bash /usr/share/brent-install/scripts/setup.sh

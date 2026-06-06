@@ -26,21 +26,49 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
 - **uv** - Fast Python package manager
 - **Starship** - Cross-shell prompt
 - **TPM** - Tmux Plugin Manager
+- **bun** - JavaScript runtime (required by gstack/gbrain)
+- **gstack** - Agent tooling/skills (public repo, cloned to `~/.claude/skills/gstack`)
+- **gbrain** - Personal knowledge brain CLI (installed via bun from the public `garrytan/gbrain` repo — *not* the unrelated npm `gbrain`)
+- **Azure CLI (`az`)** - Installed by `postinst` (idempotent); used to hydrate secrets from Key Vault
 
 ### Dotfiles
 
 - `.tmux.conf` - Tmux configuration
 - `.vimrc` - Vim configuration
 - `.gitconfig.inc` - Git aliases and settings
-- `.jby_bashrc.sh` - Custom bash functions and aliases
+- `.jby_bashrc.sh` - Custom bash functions and aliases (also adds `~/.bun/bin` to PATH and sets `GBRAIN_POOL_SIZE=2`)
+- `.config/systemd/user/gbrain-*.service.d/pool-size.conf` - systemd drop-ins capping gbrain's DB pool (survive `/setup-gbrain` regeneration)
+- `.gbrain/refresh-gbrain-db-url.sh` - Hydrates the gbrain DB URL from Azure Key Vault into `~/.gbrain/config.json`
+
+## gbrain Setup (one manual step)
+
+Secrets are never committed. The gbrain DB credential lives in Azure Key Vault
+(`swx-mr-master-dev-kv`, secret `gbrain-db-url` — the full Supabase session-pooler
+URL). After installing the package, authenticate once so the credential can be
+hydrated:
+
+```bash
+az login --tenant 29fc2961-3afa-4f23-97fe-795c7749efdf
+~/.gbrain/refresh-gbrain-db-url.sh --force   # writes ~/.gbrain/config.json
+gbrain doctor                                # expect: connection Connected
+```
+
+After a DB password rotation, update the `gbrain-db-url` KV secret once, then run
+`~/.gbrain/refresh-gbrain-db-url.sh --force` on each machine. Reconnect the gbrain
+MCP server in Claude Code (`/mcp`) so the `GBRAIN_POOL_SIZE=2` cap takes effect.
+
+> Why the pool cap: gbrain's postgres.js client defaults to 10 connections per
+> process; with the MCP server, the daily sync timers, and the CLI all sharing one
+> Supabase session pooler, bursts can trip Supavisor's circuit breaker. Capping at
+> 2 (in `.jby_bashrc.sh`, the systemd drop-ins, and the MCP server env) prevents it.
 
 ## Installation
 
 Download and install the latest release:
 
 ```bash
-wget https://github.com/byates/brent-install/releases/download/v1.0.0/brent-install_1.0.0.deb
-sudo apt install ./brent-install_1.0.0.deb
+wget https://github.com/byates/brent-install/releases/download/v1.1.0/brent-install_1.1.0.deb
+sudo apt install ./brent-install_1.1.0.deb
 ```
 
 The post-install script runs automatically to configure your environment.
@@ -51,7 +79,7 @@ The post-install script runs automatically to configure your environment.
 git clone https://github.com/byates/brent-install.git
 cd brent-install
 make build
-sudo apt install ./brent-install_1.0.0.deb
+sudo apt install ./brent-install_1.1.0.deb
 ```
 
 ### Make Targets

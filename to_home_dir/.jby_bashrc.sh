@@ -18,6 +18,15 @@ case ":${PATH}:" in
   ;;
 esac
 
+# add bun + its global bins (gbrain, etc.) to PATH if not already present
+export BUN_INSTALL="$HOME/.bun"
+case ":${PATH}:" in
+*:"$BUN_INSTALL/bin":*) ;;
+*)
+  export PATH="$BUN_INSTALL/bin:$PATH"
+  ;;
+esac
+
 #------------------------------------------------------------
 # Environment variables
 #------------------------------------------------------------
@@ -33,6 +42,20 @@ case "$(uname -m)" in
   *)       export RTE_TARGET=native-linux-gcc ;;
 esac
 export PKG_CONFIG_PATH=~/tools/${DPDK_VER}/build/meson-private:$PKG_CONFIG_PATH
+
+#------------------------------------------------------------
+# gbrain (personal knowledge brain)
+#------------------------------------------------------------
+# Cap gbrain's postgres.js connection pool (default 10) so interactive gbrain
+# commands don't burst the shared Supabase session pooler and trip Supavisor's
+# circuit breaker. See gbrain src/core/db.ts:resolvePoolSize(). The MCP server
+# and systemd sync timers set this independently (claude.json env + drop-ins).
+export GBRAIN_POOL_SIZE=2
+
+# OPENAI_API_KEY for gbrain embeddings (0600 file populated from Azure KV by
+# ~/.gbrain/refresh-openai-key.sh). The DB URL is NOT here — it lives in
+# ~/.gbrain/config.json, hydrated from KV by ~/.gbrain/refresh-gbrain-db-url.sh.
+[ -f ~/.gbrain/openai.env ] && source ~/.gbrain/openai.env
 
 #------------------------------------------------------------
 # Aliases
