@@ -44,6 +44,33 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
 - `.config/systemd/user/gbrain-*.service.d/pool-size.conf` - systemd drop-ins capping gbrain's DB pool (survive `/setup-gbrain` regeneration)
 - `.gbrain/refresh-gbrain-db-url.sh` - Hydrates the gbrain DB URL from Azure Key Vault into `~/.gbrain/config.json`
 
+## gbrain MCP registration
+
+`setup.sh` registers gbrain as an MCP server for Claude Code. It **never touches
+an existing registration** — on a box running gbrain as an HTTP service the
+bearer token lives only in `~/.claude.json` and cannot be reconstructed from
+anything in `~/.gbrain`, so an unconditional re-register was unrecoverable.
+
+Fresh installs pick a transport via `GBRAIN_MCP_MODE`:
+
+| Mode | Behavior |
+| --- | --- |
+| `auto` (default) | Keep any existing registration. Otherwise use HTTP when `GBRAIN_MCP_TOKEN` is set *and* `GBRAIN_MCP_URL` actually answers; else stdio. |
+| `stdio` | Force a stdio server (`gbrain serve`). Self-contained — no service, no token. |
+| `http` | Force HTTP. Requires `GBRAIN_MCP_TOKEN`; `GBRAIN_MCP_URL` defaults to `http://127.0.0.1:8787/mcp`. |
+| `none` | Skip MCP registration entirely. |
+
+```bash
+# fresh box, plain stdio (the simple default)
+sudo dpkg -i brent-install_*.deb
+
+# fresh box that should talk to a running gbrain-http.service
+sudo GBRAIN_MCP_MODE=http GBRAIN_MCP_TOKEN=gbrain_xxx dpkg -i brent-install_*.deb
+```
+
+To change an existing registration, remove it first:
+`claude mcp remove gbrain -s user`, then re-run with the mode you want.
+
 ## gbrain Setup (one manual step)
 
 Secrets are never committed. The gbrain DB credential lives in Azure Key Vault
