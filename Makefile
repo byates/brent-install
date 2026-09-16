@@ -11,7 +11,7 @@ help:
 	@echo "  pull-gists   Overwrite repo files FROM the gists (destructive)"
 
 PACKAGE_NAME := brent-install
-VERSION := 1.2.0
+VERSION := 1.3.0
 BUILD_DIR := $(PACKAGE_NAME)
 DEB_FILE := $(PACKAGE_NAME)_$(VERSION).deb
 

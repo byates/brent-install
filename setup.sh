@@ -183,8 +183,16 @@ cp ${SCRIPT_DIR}/nvim_lua_plugins_image.lua ${HOME}/.config/nvim/lua/plugins/ima
 # UV Manages python environments
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Startship makes our terminal prompts flashy
-curl -sS https://starship.rs/install.sh | sh -s -- -b ~/.local/bin
+# Starship makes our terminal prompts flashy.
+# --yes is REQUIRED: postinst runs this with no controlling terminal, and the
+# installer's confirmation prompt then dies with "cannot open /dev/tty", which
+# under `set -e` aborts the whole package install. Skip entirely if starship is
+# already on PATH so a reinstall doesn't re-download it.
+if command -v starship >/dev/null 2>&1; then
+  echo "starship already installed at $(command -v starship); skipping."
+else
+  curl -sS https://starship.rs/install.sh | sh -s -- --yes -b "$HOME/.local/bin"
+fi
 
 #------------------------------------------------------------
 # gstack + gbrain (knowledge brain / agent tooling)
@@ -230,16 +238,89 @@ if [ -x "$HOME/.gbrain/refresh-gbrain-db-url.sh" ]; then
     || echo "WARN: could not hydrate gbrain DB URL — run 'az login' then '~/.gbrain/refresh-gbrain-db-url.sh --force'"
 fi
 
-# Register gbrain as an MCP server for Claude Code, with the connection-pool cap.
-# Conditional: claude isn't installed by this package. Idempotent (re-add).
-if command -v claude &>/dev/null; then
-  echo "Registering gbrain MCP server (GBRAIN_POOL_SIZE=2)..."
-  claude mcp remove gbrain -s user &>/dev/null || true
-  claude mcp add gbrain -s user -e GBRAIN_POOL_SIZE=2 -- "$(command -v gbrain || echo gbrain)" serve \
-    || echo "WARN: 'claude mcp add gbrain' failed — register manually later"
-else
-  echo "claude not found; skipping gbrain MCP registration (run it after installing Claude Code)."
-fi
+# Register gbrain as an MCP server for Claude Code.
+#
+# This used to unconditionally `claude mcp remove gbrain` then re-add it as a
+# stdio server. That is destructive: a box running gbrain as an HTTP service
+# (gbrain-http.service, `gbrain serve --http`) has an http registration whose
+# bearer token exists ONLY in ~/.claude.json — nothing under ~/.gbrain can
+# reconstruct it. Re-running setup.sh silently replaced that registration and
+# there was no way to put it back.
+#
+# So: an existing registration is never touched. Mode is selectable for fresh
+# installs via GBRAIN_MCP_MODE:
+#   auto  (default) keep any existing registration; otherwise probe for a live
+#         HTTP endpoint and use it when GBRAIN_MCP_TOKEN is available; else stdio
+#   stdio force a stdio server (`gbrain serve`) — self-contained, no service
+#   http  force http; requires GBRAIN_MCP_TOKEN, optional GBRAIN_MCP_URL
+#   none  skip MCP registration entirely
+GBRAIN_MCP_MODE="${GBRAIN_MCP_MODE:-auto}"
+GBRAIN_MCP_URL="${GBRAIN_MCP_URL:-http://127.0.0.1:8787/mcp}"
+
+register_gbrain_mcp() {
+  if ! command -v claude &>/dev/null; then
+    echo "claude not found; skipping gbrain MCP registration (run it after installing Claude Code)."
+    return 0
+  fi
+
+  if [ "$GBRAIN_MCP_MODE" = "none" ]; then
+    echo "GBRAIN_MCP_MODE=none; skipping gbrain MCP registration."
+    return 0
+  fi
+
+  # Never clobber what is already there.
+  if claude mcp get gbrain &>/dev/null; then
+    echo "gbrain MCP server already registered; leaving it untouched."
+    echo "  (to change it: claude mcp remove gbrain -s user, then re-run with GBRAIN_MCP_MODE=stdio|http)"
+    return 0
+  fi
+
+  local mode="$GBRAIN_MCP_MODE"
+  if [ "$mode" = "auto" ]; then
+    # Positive probe: only choose http if the endpoint actually answers AND we
+    # have a token to talk to it with. Otherwise stdio, which needs neither.
+    # NB: do NOT use `curl -f` here. The MCP endpoint answers a plain GET with
+    # 405 Method Not Allowed, which -f treats as failure — so a perfectly
+    # healthy service probed as dead. Any HTTP status means something answered;
+    # only curl's own "000" (no response) means it did not.
+    local code=""
+    if [ -n "${GBRAIN_MCP_TOKEN:-}" ]; then
+      # `|| code=000` (not `|| echo 000`): curl already prints 000 on a failed
+      # connection, so echoing another would make $code the two-line "000\n000"
+      # — which is not equal to "000" and would read as alive.
+      code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$GBRAIN_MCP_URL" 2>/dev/null) || code=000
+    fi
+    if [ -n "$code" ] && [ "$code" != "000" ]; then
+      mode=http
+    else
+      mode=stdio
+    fi
+    echo "GBRAIN_MCP_MODE=auto resolved to '$mode'"
+  fi
+
+  case "$mode" in
+    http)
+      if [ -z "${GBRAIN_MCP_TOKEN:-}" ]; then
+        echo "WARN: GBRAIN_MCP_MODE=http but GBRAIN_MCP_TOKEN is unset; skipping."
+        echo "      Register manually: claude mcp add-json gbrain -s user '{\"type\":\"http\",...}'"
+        return 0
+      fi
+      echo "Registering gbrain MCP server over HTTP ($GBRAIN_MCP_URL)..."
+      claude mcp add-json gbrain -s user \
+        "{\"type\":\"http\",\"url\":\"$GBRAIN_MCP_URL\",\"headers\":{\"Authorization\":\"Bearer $GBRAIN_MCP_TOKEN\"}}" \
+        || echo "WARN: http registration failed — register manually later"
+      ;;
+    stdio)
+      echo "Registering gbrain MCP server over stdio (GBRAIN_POOL_SIZE=2)..."
+      claude mcp add gbrain -s user -e GBRAIN_POOL_SIZE=2 -- "$(command -v gbrain || echo gbrain)" serve \
+        || echo "WARN: 'claude mcp add gbrain' failed — register manually later"
+      ;;
+    *)
+      echo "WARN: unknown GBRAIN_MCP_MODE='$mode' (want auto|stdio|http|none); skipping."
+      ;;
+  esac
+}
+register_gbrain_mcp
 
 # Apply the systemd pool-size drop-ins shipped in to_home_dir (best-effort:
 # user systemd may be unavailable during package install — they apply on login).
