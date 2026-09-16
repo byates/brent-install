@@ -171,6 +171,20 @@ fi
 command -v starship &>/dev/null && eval "$(starship init bash)"
 
 #------------------------------------------------------------
+# Machine-local overrides
+#------------------------------------------------------------
+# Put anything host-specific here — API-key sourcing, per-box paths, editor
+# choice — NOT at the end of ~/.bashrc. This file is unmanaged and survives
+# reinstall, and it is sourced after everything above, so it can deliberately
+# override what this file sets.
+#
+# Appending to ~/.bashrc instead is how the ssh-agent broke on 2026-09-16: a
+# hand-added `export SSH_AUTH_SOCK=~/.ssh/agent.sock` ran *after* .bashrc
+# sourced this file, silently replacing the agent socket this file had just
+# set up — with a symlink that no longer resolved.
+[ -f "$HOME/.jby_bashrc.local.sh" ] && . "$HOME/.jby_bashrc.local.sh"
+
+#------------------------------------------------------------
 # Tmux session detection (last, may launch new shell)
 #------------------------------------------------------------
 if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
