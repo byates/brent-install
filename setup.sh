@@ -49,6 +49,67 @@ if ! grep -Fxq "$LINE" "$TARGET_FILE"; then
   echo "$LINE" >>"$TARGET_FILE"
 fi
 
+# Seed the machine-local override file. This is the sanctioned place for
+# host-specific config; it is sourced from .jby_bashrc.sh and never overwritten
+# by this package, so it survives reinstall.
+LOCAL_RC="$HOME/.jby_bashrc.local.sh"
+if [ ! -f "$LOCAL_RC" ]; then
+  cat >"$LOCAL_RC" <<'EOF'
+# Machine-local shell config. Sourced from ~/.jby_bashrc.sh; never overwritten
+# by the brent-install package. Put host-specific things here — API-key
+# sourcing, per-box paths, editor choice — rather than appending to ~/.bashrc,
+# where they land AFTER .jby_bashrc.sh is sourced and silently override it.
+EOF
+  echo "Created $LOCAL_RC for host-specific shell config"
+fi
+
+# Warn about ~/.bashrc lines that override variables .jby_bashrc.sh owns.
+#
+# Only the source line above is managed; the rest of ~/.bashrc accumulates
+# hand-edits. Anything appended after that line wins, because it runs later.
+# That is not hypothetical: an `export SSH_AUTH_SOCK=~/.ssh/agent.sock` added
+# by hand pointed at a symlink whose agent was long gone, and broke ssh-agent
+# in every shell on the box (2026-09-16). Report the conflicts; don't rewrite
+# the user's file.
+check_bashrc_overrides() {
+  local jby="$HOME/.jby_bashrc.sh"
+  [ -f "$jby" ] || return 0
+
+  local src_line
+  src_line=$(grep -n 'jby_bashrc\.sh' "$TARGET_FILE" | head -1 | cut -d: -f1) || return 0
+  [ -n "$src_line" ] || return 0
+
+  # Variables .jby_bashrc.sh exports, so we know what it owns.
+  local owned
+  owned=$(grep -oP '^\s*export \K[A-Za-z_][A-Za-z0-9_]*' "$jby" | sort -u)
+  [ -n "$owned" ] || return 0
+
+  local found=0 var hit
+  while IFS= read -r var; do
+    # Only lines AFTER the source line can override it.
+    hit=$(awk -v start="$src_line" -v v="$var" \
+      'NR > start && $0 ~ ("^[[:space:]]*export[[:space:]]+" v "=") { print NR": "$0 }' \
+      "$TARGET_FILE")
+    if [ -n "$hit" ]; then
+      [ "$found" = 0 ] && {
+        echo ""
+        echo "WARNING: ~/.bashrc overrides variables that ~/.jby_bashrc.sh sets."
+        echo "These run after it is sourced (line $src_line), so they win:"
+        found=1
+      }
+      echo "  $hit"
+    fi
+  done <<<"$owned"
+
+  if [ "$found" = 1 ]; then
+    echo ""
+    echo "Move them to ~/.jby_bashrc.local.sh, which is sourced from inside"
+    echo ".jby_bashrc.sh and overrides it deliberately rather than by accident."
+    echo ""
+  fi
+}
+check_bashrc_overrides || true
+
 # Initialize git config if empty
 GITCONFIG="$HOME/.gitconfig"
 if [ ! -s "$GITCONFIG" ]; then
