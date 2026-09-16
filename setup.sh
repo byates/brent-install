@@ -18,6 +18,16 @@ fi
 echo "Running setup as: $(whoami) @ $HOME on $PLATFORM"
 mkdir -p "$HOME/.config"
 
+# postinst invokes this script with dpkg's minimal PATH, which does NOT include
+# the user bin dirs where previously-installed tools live. Every `command -v`
+# guard below therefore reported "not installed" for things that were, and:
+#   - bun was redundantly reinstalled, and ITS installer appended a duplicate
+#     `export PATH="$BUN_INSTALL/bin:$PATH"` to ~/.bashrc (see the override
+#     warning this script prints at the end)
+#   - claude was declared missing, so the gbrain MCP step was skipped entirely
+# Put the real locations on PATH first so the guards see the truth.
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
+
 # Install node via nvm (fetch latest version)
 NVM_LATEST=$(curl -s https://api.github.com/repos/nvm-sh/nvm/releases/latest | grep '"tag_name"' | cut -d '"' -f 4)
 echo "Installing nvm ${NVM_LATEST}..."
