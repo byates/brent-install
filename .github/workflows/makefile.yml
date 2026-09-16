@@ -15,24 +15,46 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Important! Needed to get tags
+          fetch-depth: 0 # Important! Needed to get tags
 
       - name: Build .deb package
         run: make build
 
-      - name: Get current Git tag
-        id: get_tag
+      - name: Verify the package metadata matches the built artifact
         run: |
-          TAG=$(git describe --tags --abbrev=0)
-          echo "Found tag: $TAG"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          VERSION=$(make -s print-version)
+          DEB="brent-install_${VERSION}.deb"
+          test -f "$DEB" || { echo "expected $DEB, got: $(ls brent-install_*.deb)"; exit 1; }
+          CONTROL_VERSION=$(dpkg-deb -f "$DEB" Version)
+          test "$CONTROL_VERSION" = "$VERSION" \
+            || { echo "control says $CONTROL_VERSION, Makefile says $VERSION"; exit 1; }
+          echo "ok: $DEB declares version $CONTROL_VERSION"
 
+      # The version comes from the Makefile, which is the single place it is
+      # defined. The old workflow used `git describe --tags --abbrev=0`, which
+      # returns the NEWEST EXISTING tag — so every push tried to publish a
+      # release for a tag that had already been released, and the job failed
+      # with "422 already_exists" on every commit from April onward. Nothing
+      # had been published in five months.
+      - name: Resolve release tag from the Makefile
+        id: version
+        run: |
+          VERSION=$(make -s print-version)
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Releasing as v${VERSION}"
+
+      # Releases come from main only. `on: push` fires for every branch, so the
+      # old workflow also tried to cut a release from feature branches — two
+      # branches in flight would race for the same tag.
       - name: Create GitHub Release with .deb asset
+        if: github.ref == 'refs/heads/main'
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ steps.get_tag.outputs.tag }}
+          tag: ${{ steps.version.outputs.tag }}
+          commit: ${{ github.sha }}
           artifacts: brent-install_*.deb
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           replacesArtifacts: true
-
+          makeLatest: true
