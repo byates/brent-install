@@ -7,14 +7,20 @@ help:
 	@echo "  build      Build the Debian package"
 	@echo "  clean      Remove generated files"
 	@echo "  check-gists  Report drift between this repo and the upstream gists"
+	@echo "  print-version  Print the package version (used by CI to tag releases)"
 	@echo "  pull-gists   Overwrite repo files FROM the gists (destructive)"
 
 PACKAGE_NAME := brent-install
-VERSION := 1.1.0
+VERSION := 1.2.0
 BUILD_DIR := $(PACKAGE_NAME)
 DEB_FILE := $(PACKAGE_NAME)_$(VERSION).deb
 
 all: build
+
+# CI tags the release from this, so the Makefile is the one place a version
+# is defined. Bump VERSION above when the package contents change.
+print-version:
+	@echo $(VERSION)
 
 build: prepare
 	dpkg-deb --build $(BUILD_DIR) $(DEB_FILE)
@@ -27,7 +33,11 @@ prepare:
 	mkdir -p $(BUILD_DIR)/usr/share/$(PACKAGE_NAME)/scripts
 
 	@echo "Copying control file and scripts..."
-	cp control $(BUILD_DIR)/DEBIAN/control
+	# Stamp the version from VERSION above rather than copying control verbatim.
+	# The two were maintained by hand and had already drifted: control said
+	# 1.1.0 while the .deb filename came from VERSION, so the package metadata
+	# and the artifact name could disagree silently.
+	sed 's/^Version: .*/Version: $(VERSION)/' control > $(BUILD_DIR)/DEBIAN/control
 	cp postinst $(BUILD_DIR)/DEBIAN/postinst
 	chmod 755 $(BUILD_DIR)/DEBIAN/postinst
 
@@ -112,5 +122,5 @@ update:
 	@echo "  make pull-gists CONFIRM=yes   overwrite repo FROM gists (destructive)"
 	@exit 1
 
-.PHONY: help all build prepare clean update check-gists pull-gists
+.PHONY: help all build prepare clean update check-gists pull-gists print-version
 
