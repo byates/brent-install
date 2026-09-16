@@ -37,6 +37,10 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
 - `.vimrc` - Vim configuration
 - `.gitconfig.inc` - Git aliases and settings
 - `.jby_bashrc.sh` - Custom bash functions and aliases (also adds `~/.bun/bin` to PATH and sets `GBRAIN_POOL_SIZE=2`)
+  - Bootstraps a single ssh-agent per user and exports `SSH_AUTH_SOCK=~/.ssh/agent.sock`,
+    a symlink re-pointed at the live agent on each login so tmux panes and long-lived
+    processes keep a working agent. Do **not** hardcode that path elsewhere in `.bashrc`
+    without an `[ -S ... ]` guard — a stale symlink there breaks the agent in every shell.
 - `.config/systemd/user/gbrain-*.service.d/pool-size.conf` - systemd drop-ins capping gbrain's DB pool (survive `/setup-gbrain` regeneration)
 - `.gbrain/refresh-gbrain-db-url.sh` - Hydrates the gbrain DB URL from Azure Key Vault into `~/.gbrain/config.json`
 

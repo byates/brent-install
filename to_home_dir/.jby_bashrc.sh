@@ -87,27 +87,81 @@ set +H
 #------------------------------------------------------------
 # SSH agent (ensures agent runs for git access with key files)
 #------------------------------------------------------------
+# One agent per user, reachable from every shell — and from tmux panes and
+# other long-lived processes — via the STABLE path $SSH_AGENT_SOCK_LINK,
+# which is re-pointed at the live agent on each login.
+#
+# Hardening notes (from a real breakage on 2026-09-16):
+#  - Liveness is a POSITIVE probe (`ssh-add -l` exit status), not `kill -0
+#    $SSH_AGENT_PID` or `ps | grep`. A live PID does not prove the socket is
+#    reachable, which is exactly how this failed: the recorded socket lived
+#    under a /tmp dir that had since been reaped, so every shell exported an
+#    SSH_AUTH_SOCK that produced "Error connecting to agent".
+#  - $SSH_ENV is validated before being sourced. It is machine-written state;
+#    if it is ever clobbered with prose, sourcing it executes that prose
+#    (this is where "Initialising: command not found" at login came from).
+#  - $SSH_ENV is written atomically (temp + mv). A plain `>` truncates in
+#    place, so a concurrent login can source a half-written file.
 if [[ $- == *i* ]]; then
   SSH_ENV="$HOME/.ssh/environment"
+  SSH_AGENT_SOCK_LINK="$HOME/.ssh/agent.sock"
+
+  # Positive liveness probe for the socket named by $1. `ssh-add -l` exits 0
+  # with keys loaded, 1 for a running-but-empty agent, 2 when it cannot connect.
+  _ssh_agent_alive() {
+    [ -n "${1:-}" ] || return 1
+    (
+      SSH_AUTH_SOCK="$1"
+      export SSH_AUTH_SOCK
+      ssh-add -l >/dev/null 2>&1
+      [ $? -ne 2 ]
+    )
+  }
+
+  # Only ever source lines this bootstrap itself writes.
+  _ssh_env_is_sane() {
+    [ -s "${SSH_ENV}" ] || return 1
+    ! grep -qvE '^(#|SSH_AUTH_SOCK=|SSH_AGENT_PID=|$)' "${SSH_ENV}"
+  }
+
+  # Re-point the stable path at the agent we actually ended up with.
+  _ssh_agent_link_refresh() {
+    [ -S "${SSH_AUTH_SOCK:-}" ] || return 1
+    # Never make the link point at itself.
+    case "${SSH_AUTH_SOCK}" in "${SSH_AGENT_SOCK_LINK}") return 0 ;; esac
+    ln -sfn "${SSH_AUTH_SOCK}" "${SSH_AGENT_SOCK_LINK}"
+  }
 
   start_agent() {
     echo "Initialising new SSH agent..."
     mkdir -p "$HOME/.ssh"
-    /usr/bin/ssh-agent | sed 's/^echo/#echo/' >"${SSH_ENV}"
-    chmod 600 "${SSH_ENV}"
+    local tmp
+    tmp="$(mktemp "${SSH_ENV}.XXXXXX")" || return 1
+    if /usr/bin/ssh-agent | sed 's/^echo/#echo/' >"${tmp}"; then
+      chmod 600 "${tmp}"
+      mv -f "${tmp}" "${SSH_ENV}"
+    else
+      echo "ssh-agent failed to start" >&2
+      rm -f "${tmp}"
+      return 1
+    fi
     . "${SSH_ENV}" >/dev/null
-    # Only add keys if they exist
-    find "$HOME/.ssh" -maxdepth 1 -name 'id_*' ! -name '*.pub' -type f 2>/dev/null | head -1 | grep -q . && /usr/bin/ssh-add
+    _ssh_agent_link_refresh
+    # Only add keys if they exist, and only on a real terminal — a
+    # passphrase-protected key would otherwise block an ansible/cron login.
+    if [ -t 0 ] && [ "$TERM" != "dumb" ]; then
+      find "$HOME/.ssh" -maxdepth 1 -name 'id_*' ! -name '*.pub' -type f 2>/dev/null | head -1 | grep -q . && /usr/bin/ssh-add
+    fi
   }
 
-  if [ -f "${SSH_ENV}" ]; then
-    . "${SSH_ENV}" >/dev/null
-    # Check if agent is actually running using kill -0
-    if ! kill -0 "${SSH_AGENT_PID}" 2>/dev/null; then
-      start_agent
-    fi
+  # Prefer an agent already reachable via the stable link (it survives across
+  # shells); else adopt the one recorded in $SSH_ENV; else start a new one.
+  if _ssh_agent_alive "${SSH_AGENT_SOCK_LINK}"; then
+    export SSH_AUTH_SOCK="${SSH_AGENT_SOCK_LINK}"
+  elif _ssh_env_is_sane && . "${SSH_ENV}" >/dev/null 2>&1 && _ssh_agent_alive "${SSH_AUTH_SOCK:-}"; then
+    _ssh_agent_link_refresh && export SSH_AUTH_SOCK="${SSH_AGENT_SOCK_LINK}"
   else
-    start_agent
+    start_agent && export SSH_AUTH_SOCK="${SSH_AGENT_SOCK_LINK}"
   fi
 fi
 
