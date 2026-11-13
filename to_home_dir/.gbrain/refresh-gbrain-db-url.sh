@@ -28,7 +28,7 @@ if [ "$force" = 0 ] && [ -f "$OUT" ] && grep -q '"database_url"[[:space:]]*:[[:s
 fi
 
 if ! command -v az >/dev/null 2>&1; then
-  echo "ERROR: az CLI not on PATH. (postinst installs it; open a new shell.)" >&2
+  echo "ERROR: az CLI not on PATH. Install it with /usr/share/brent-install/scripts/install-azure-cli.sh" >&2
   exit 1
 fi
 

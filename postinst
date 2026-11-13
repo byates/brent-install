@@ -25,14 +25,15 @@ fi
 # 3. Install rustup via snap
 snap install rustup --classic
 
-# 4. Install Azure CLI (needed by ~/.gbrain/refresh-*.sh to hydrate secrets from
-#    Key Vault). Not available in stock Ubuntu repos, so it can't be an apt
-#    Depends — install via Microsoft's script. Idempotent: skip if present.
+# 4. Azure CLI (needed by ~/.gbrain/refresh-*.sh to hydrate secrets from Key
+#    Vault). It is NOT installed here: Microsoft's installer runs apt-get, and a
+#    postinst runs while the outer apt/dpkg holds the dpkg lock, so the nested
+#    apt-get failed with "Could not get lock" and, under `set -e`, left the
+#    whole package half-configured (seen on a fresh Ubuntu 26.04 box, where az
+#    wasn't already present to skip the step). Point at the helper instead.
 if ! command -v az >/dev/null 2>&1; then
-  echo "Installing Azure CLI..."
-  curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-else
-  echo "Azure CLI already installed; skipping."
+  echo "NOTE: Azure CLI not installed. After this install finishes, run:"
+  echo "  /usr/share/brent-install/scripts/install-azure-cli.sh"
 fi
 
 # 5. Run additional user script; run setup.sh as that user, preserving HOME

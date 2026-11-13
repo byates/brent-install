@@ -29,7 +29,7 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
 - **bun** - JavaScript runtime (required by gstack/gbrain)
 - **gstack** - Agent tooling/skills (public repo, cloned to `~/.claude/skills/gstack`)
 - **gbrain** - Personal knowledge brain CLI (installed via bun from the public `garrytan/gbrain` repo — *not* the unrelated npm `gbrain`)
-- **Azure CLI (`az`)** - Installed by `postinst` (idempotent); used to hydrate secrets from Key Vault
+- **Azure CLI (`az`)** - *Not* installed by `postinst` (it needs apt, and the dpkg lock is held during configure). Run `/usr/share/brent-install/scripts/install-azure-cli.sh` after installing the package; used to hydrate secrets from Key Vault
 
 ### Dotfiles
 
@@ -98,8 +98,9 @@ MCP server in Claude Code (`/mcp`) so the `GBRAIN_POOL_SIZE=2` cap takes effect.
 Download and install the latest release:
 
 ```bash
-wget https://github.com/byates/brent-install/releases/download/v1.1.0/brent-install_1.1.0.deb
-sudo apt install ./brent-install_1.1.0.deb
+wget https://github.com/byates/brent-install/releases/download/v1.4.1/brent-install_1.4.1.deb
+sudo apt install ./brent-install_1.4.1.deb
+/usr/share/brent-install/scripts/install-azure-cli.sh   # if az isn't installed yet
 ```
 
 The post-install script runs automatically to configure your environment.
@@ -110,7 +111,7 @@ The post-install script runs automatically to configure your environment.
 git clone https://github.com/byates/brent-install.git
 cd brent-install
 make build
-sudo apt install ./brent-install_1.1.0.deb
+sudo apt install ./brent-install_1.4.1.deb
 ```
 
 ### Make Targets
@@ -125,6 +126,7 @@ Scripts installed to `/usr/share/brent-install/scripts/`:
 
 | Script                   | Description                   |
 | ------------------------ | ----------------------------- |
+| `install-azure-cli.sh`   | Azure CLI from Microsoft apt  |
 | `install-build-tools.sh` | Additional build tools        |
 | `install-clang20.sh`     | Clang 20 from LLVM apt        |
 | `install-gtest.sh`       | Google Test framework         |

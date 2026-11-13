@@ -107,7 +107,7 @@ check_bashrc_overrides() {
         echo "These run after it is sourced (line $src_line), so they win:"
         found=1
       }
-      echo "  $hit"
+      printf '%s\n' "$hit" | sed 's/^/  /'
     fi
   done <<<"$owned"
 
@@ -138,9 +138,11 @@ else
 fi
 
 # Install fzf using official install script
+# (Checks for the clone, not the directory: the old `mkdir -p` right before a
+# `[ ! -d ]` test meant fzf was never actually installed.)
 FZF_PATH=$HOME/.local/.fzf
-mkdir -p $FZF_PATH
-if [ ! -d "$FZF_PATH" ]; then
+if [ ! -d "$FZF_PATH/.git" ]; then
+  rm -rf "$FZF_PATH"
   git clone -q --depth 1 https://github.com/junegunn/fzf.git ${FZF_PATH}
   yes | ${FZF_PATH}/install --all # Accept all options: keybindings, completion, update shell rc
 else
