@@ -20,6 +20,7 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
 - **Neovim** - Built from source (`~/tools/neovim`), installed to `~/.local`, with LazyVim and custom plugins
 - **fzf** - Fuzzy finder
 - **lazygit** - Terminal UI for git
+- **gh** - GitHub CLI, latest release tarball into `~/.local/bin` (Ubuntu's own package is far behind)
 - **nvm + Node.js** - Latest nvm with LTS Node.js
 - **Prettier** - Code formatter (installed globally via npm)
 - **rustup** - Rust toolchain installer (installed via snap)
@@ -28,7 +29,7 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
 - **TPM** - Tmux Plugin Manager
 - **bun** - JavaScript runtime (required by gstack/gbrain)
 - **gstack** - Agent tooling/skills (public repo, cloned to `~/.claude/skills/gstack`)
-- **gbrain** - Personal knowledge brain CLI (installed via bun from the public `garrytan/gbrain` repo — *not* the unrelated npm `gbrain`)
+- **gbrain** - *Opt-in* (`INSTALL_GBRAIN=1`, see below). Personal knowledge brain CLI (installed via bun from the public `garrytan/gbrain` repo — *not* the unrelated npm `gbrain`)
 - **Azure CLI (`az`)** - *Not* installed by `postinst` (it needs apt, and the dpkg lock is held during configure). Run `/usr/share/brent-install/scripts/install-azure-cli.sh` after installing the package; used to hydrate secrets from Key Vault
 
 ### Dotfiles
@@ -44,9 +45,19 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
 - `.config/systemd/user/gbrain-*.service.d/pool-size.conf` - systemd drop-ins capping gbrain's DB pool (survive `/setup-gbrain` regeneration)
 - `.gbrain/refresh-gbrain-db-url.sh` - Hydrates the gbrain DB URL from Azure Key Vault into `~/.gbrain/config.json`
 
-## gbrain MCP registration
+## gbrain (opt-in)
 
-`setup.sh` registers gbrain as an MCP server for Claude Code. It **never touches
+gbrain is **off by default**: without `INSTALL_GBRAIN=1`, setup installs no gbrain
+CLI, hydrates no DB credential, and registers no MCP server (it also leaves an
+existing install alone). Turn it on per install:
+
+```bash
+sudo INSTALL_GBRAIN=1 apt install ./brent-install_*.deb
+```
+
+### MCP registration
+
+With gbrain enabled, `setup.sh` registers it as an MCP server for Claude Code. It **never touches
 an existing registration** — on a box running gbrain as an HTTP service the
 bearer token lives only in `~/.claude.json` and cannot be reconstructed from
 anything in `~/.gbrain`, so an unconditional re-register was unrecoverable.
@@ -62,16 +73,16 @@ Fresh installs pick a transport via `GBRAIN_MCP_MODE`:
 
 ```bash
 # fresh box, plain stdio (the simple default)
-sudo dpkg -i brent-install_*.deb
+sudo INSTALL_GBRAIN=1 dpkg -i brent-install_*.deb
 
 # fresh box that should talk to a running gbrain-http.service
-sudo GBRAIN_MCP_MODE=http GBRAIN_MCP_TOKEN=gbrain_xxx dpkg -i brent-install_*.deb
+sudo INSTALL_GBRAIN=1 GBRAIN_MCP_MODE=http GBRAIN_MCP_TOKEN=gbrain_xxx dpkg -i brent-install_*.deb
 ```
 
 To change an existing registration, remove it first:
 `claude mcp remove gbrain -s user`, then re-run with the mode you want.
 
-## gbrain Setup (one manual step)
+### gbrain DB credential (one manual step, when enabled)
 
 Secrets are never committed. The gbrain DB credential lives in Azure Key Vault
 (`swx-mr-master-dev-kv`, secret `gbrain-db-url` — the full Supabase session-pooler
@@ -98,8 +109,8 @@ MCP server in Claude Code (`/mcp`) so the `GBRAIN_POOL_SIZE=2` cap takes effect.
 Download and install the latest release:
 
 ```bash
-wget https://github.com/byates/brent-install/releases/download/v1.4.1/brent-install_1.4.1.deb
-sudo apt install ./brent-install_1.4.1.deb
+wget https://github.com/byates/brent-install/releases/download/v1.5.0/brent-install_1.5.0.deb
+sudo apt install ./brent-install_1.5.0.deb
 /usr/share/brent-install/scripts/install-azure-cli.sh   # if az isn't installed yet
 ```
 
@@ -111,7 +122,7 @@ The post-install script runs automatically to configure your environment.
 git clone https://github.com/byates/brent-install.git
 cd brent-install
 make build
-sudo apt install ./brent-install_1.4.1.deb
+sudo apt install ./brent-install_1.5.0.deb
 ```
 
 ### Make Targets

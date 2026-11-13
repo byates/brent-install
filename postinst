@@ -36,5 +36,20 @@ if ! command -v az >/dev/null 2>&1; then
   echo "  /usr/share/brent-install/scripts/install-azure-cli.sh"
 fi
 
-# 5. Run additional user script; run setup.sh as that user, preserving HOME
-sudo -u "$REAL_USER" HOME="$USER_HOME" bash /usr/share/brent-install/scripts/setup.sh
+# 5. Run additional user script; run setup.sh as that user, preserving HOME.
+#
+# sudo resets the environment, so the gbrain knobs (INSTALL_GBRAIN,
+# GBRAIN_MCP_*) never reached setup.sh before — pass them explicitly. The token
+# goes via a 0600 file rather than sudo's argv, where `ps` would show it for
+# the whole run.
+SETUP_ENV=(HOME="$USER_HOME" INSTALL_GBRAIN="${INSTALL_GBRAIN:-0}")
+[ -n "${GBRAIN_MCP_MODE:-}" ] && SETUP_ENV+=(GBRAIN_MCP_MODE="$GBRAIN_MCP_MODE")
+[ -n "${GBRAIN_MCP_URL:-}" ] && SETUP_ENV+=(GBRAIN_MCP_URL="$GBRAIN_MCP_URL")
+if [ -n "${GBRAIN_MCP_TOKEN:-}" ]; then
+  TOKEN_FILE=$(mktemp)   # 0600
+  trap 'rm -f "$TOKEN_FILE"' EXIT
+  printf '%s' "$GBRAIN_MCP_TOKEN" >"$TOKEN_FILE"
+  chown "$REAL_USER" "$TOKEN_FILE"
+  SETUP_ENV+=(GBRAIN_MCP_TOKEN_FILE="$TOKEN_FILE")
+fi
+sudo -u "$REAL_USER" "${SETUP_ENV[@]}" bash /usr/share/brent-install/scripts/setup.sh

@@ -162,6 +162,27 @@ else
   echo "lazygit already installed"
 fi
 
+# Install gh (GitHub CLI) from its release tarball. Ubuntu's own package is far
+# behind (2.46 on 26.04 vs 2.10x upstream), and GitHub's apt repo can't be used
+# from here: postinst runs while dpkg holds its lock, so no apt-get.
+if ! command -v gh &>/dev/null; then
+  echo "Installing gh..."
+  GH_ARCH=$([ "$PLATFORM" = x86_64 ] && echo amd64 || echo arm64)
+  GH_VERSION=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | grep '"tag_name"' | cut -d '"' -f 4)
+  GH_TMP=$(mktemp -d)
+  if curl -fsSL "https://github.com/cli/cli/releases/download/${GH_VERSION}/gh_${GH_VERSION#v}_linux_${GH_ARCH}.tar.gz" |
+    tar -xz -C "$GH_TMP" --strip-components=1; then
+    mkdir -p "$HOME/.local/bin" "$HOME/.local/share/man/man1"
+    install -m 755 "$GH_TMP/bin/gh" "$HOME/.local/bin/gh"
+    cp "$GH_TMP"/share/man/man1/* "$HOME/.local/share/man/man1/" 2>/dev/null || true
+  else
+    echo "WARN: gh install failed"
+  fi
+  rm -rf "$GH_TMP"
+else
+  echo "gh already installed at $(command -v gh)"
+fi
+
 # Build and install nvim from source
 NVIM_DIR="${HOME}/tools/neovim"
 if [ ! -d "${NVIM_DIR}" ]; then
@@ -209,6 +230,11 @@ fi
 #------------------------------------------------------------
 # gstack + gbrain (knowledge brain / agent tooling)
 #
+# gbrain is OPT-IN (INSTALL_GBRAIN=1): installing, hydrating its DB credential
+# and registering its MCP server all happen only when asked for, because on a
+# box whose gbrain config comes from elsewhere (fleet provisioning) this script
+# must not set it up on its own. gstack is always installed.
+#
 # Both are PUBLIC repos (clone over HTTPS, no SSH key needed). gbrain installs
 # from its git repo via bun — NOT from npm (the npm "gbrain" is an unrelated
 # package). The DB credential is never committed; it's hydrated from Azure KV.
@@ -223,12 +249,6 @@ fi
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
-# gbrain CLI (from the public git repo, via bun global)
-if command -v bun &>/dev/null && ! command -v gbrain &>/dev/null; then
-  echo "Installing gbrain..."
-  bun add -g github:garrytan/gbrain || echo "WARN: gbrain install failed"
-fi
-
 # gstack (public; clone over HTTPS, then run its setup)
 GSTACK_DIR="$HOME/.claude/skills/gstack"
 if [ ! -d "$GSTACK_DIR/.git" ]; then
@@ -241,13 +261,6 @@ if [ ! -d "$GSTACK_DIR/.git" ]; then
   fi
 else
   echo "gstack already installed at $GSTACK_DIR"
-fi
-
-# Hydrate the gbrain DB URL from Azure Key Vault (no-op if already present;
-# needs `az login` first — warns rather than failing the provision).
-if [ -x "$HOME/.gbrain/refresh-gbrain-db-url.sh" ]; then
-  "$HOME/.gbrain/refresh-gbrain-db-url.sh" \
-    || echo "WARN: could not hydrate gbrain DB URL — run 'az login' then '~/.gbrain/refresh-gbrain-db-url.sh --force'"
 fi
 
 # Register gbrain as an MCP server for Claude Code.
@@ -332,13 +345,40 @@ register_gbrain_mcp() {
       ;;
   esac
 }
-register_gbrain_mcp
 
-# Apply the systemd pool-size drop-ins shipped in to_home_dir (best-effort:
-# user systemd may be unavailable during package install — they apply on login).
-systemctl --user daemon-reload &>/dev/null || true
+# postinst can't put the token in sudo's argv (visible in `ps` for the whole
+# run), so it hands it over in a 0600 file instead.
+if [ -z "${GBRAIN_MCP_TOKEN:-}" ] && [ -r "${GBRAIN_MCP_TOKEN_FILE:-}" ]; then
+  GBRAIN_MCP_TOKEN=$(cat "$GBRAIN_MCP_TOKEN_FILE")
+fi
 
-echo ""
-echo "gstack/gbrain step done. To finish gbrain: ensure 'az login', run"
-echo "  ~/.gbrain/refresh-gbrain-db-url.sh --force && gbrain doctor"
-echo "and reconnect the gbrain MCP server in Claude Code (/mcp) so the pool cap takes effect."
+if [ "${INSTALL_GBRAIN:-0}" = 1 ]; then
+  # gbrain CLI (from the public git repo, via bun global)
+  if command -v bun &>/dev/null && ! command -v gbrain &>/dev/null; then
+    echo "Installing gbrain..."
+    bun add -g github:garrytan/gbrain || echo "WARN: gbrain install failed"
+  fi
+
+  # Hydrate the gbrain DB URL from Azure Key Vault (no-op if already present;
+  # needs `az login` first — warns rather than failing the provision).
+  if [ -x "$HOME/.gbrain/refresh-gbrain-db-url.sh" ]; then
+    "$HOME/.gbrain/refresh-gbrain-db-url.sh" \
+      || echo "WARN: could not hydrate gbrain DB URL — run 'az login' then '~/.gbrain/refresh-gbrain-db-url.sh --force'"
+  fi
+
+  register_gbrain_mcp
+
+  # Apply the systemd pool-size drop-ins shipped in to_home_dir (best-effort:
+  # user systemd may be unavailable during package install — they apply on login).
+  systemctl --user daemon-reload &>/dev/null || true
+
+  echo ""
+  echo "gstack/gbrain step done. To finish gbrain: ensure 'az login', run"
+  echo "  ~/.gbrain/refresh-gbrain-db-url.sh --force && gbrain doctor"
+  echo "and reconnect the gbrain MCP server in Claude Code (/mcp) so the pool cap takes effect."
+else
+  echo ""
+  echo "Skipping gbrain (opt-in). To install it and register its MCP server:"
+  echo "  sudo INSTALL_GBRAIN=1 apt install --reinstall ./brent-install_<ver>.deb"
+  echo "  or: INSTALL_GBRAIN=1 /usr/share/brent-install/scripts/setup.sh"
+fi
