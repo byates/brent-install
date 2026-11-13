@@ -228,40 +228,25 @@ else
 fi
 
 #------------------------------------------------------------
-# gstack + gbrain (knowledge brain / agent tooling)
+# gbrain (knowledge brain)
 #
-# gbrain is OPT-IN (INSTALL_GBRAIN=1): installing, hydrating its DB credential
-# and registering its MCP server all happen only when asked for, because on a
-# box whose gbrain config comes from elsewhere (fleet provisioning) this script
-# must not set it up on its own. gstack is always installed.
+# On by default; INSTALL_GBRAIN=0 skips installing it, hydrating its DB
+# credential and registering its MCP server (an existing install is left
+# alone either way). gstack is deliberately NOT installed.
 #
-# Both are PUBLIC repos (clone over HTTPS, no SSH key needed). gbrain installs
-# from its git repo via bun — NOT from npm (the npm "gbrain" is an unrelated
-# package). The DB credential is never committed; it's hydrated from Azure KV.
-# These steps are best-effort: a transient failure warns but doesn't abort setup.
+# gbrain is a PUBLIC repo and installs from git via bun — NOT from npm (the npm
+# "gbrain" is an unrelated package). The DB credential is never committed; it's
+# hydrated from Azure KV. These steps are best-effort: a transient failure
+# warns but doesn't abort setup.
 #------------------------------------------------------------
 
-# bun runtime (required by gbrain + gstack)
+# bun runtime (required by gbrain)
 if ! command -v bun &>/dev/null; then
   echo "Installing bun..."
   curl -fsSL https://bun.sh/install | bash || echo "WARN: bun install failed"
 fi
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
-
-# gstack (public; clone over HTTPS, then run its setup)
-GSTACK_DIR="$HOME/.claude/skills/gstack"
-if [ ! -d "$GSTACK_DIR/.git" ]; then
-  echo "Installing gstack..."
-  mkdir -p "$(dirname "$GSTACK_DIR")"
-  if git clone -q https://github.com/garrytan/gstack.git "$GSTACK_DIR"; then
-    (cd "$GSTACK_DIR" && ./setup) || echo "WARN: gstack ./setup failed"
-  else
-    echo "WARN: gstack clone failed"
-  fi
-else
-  echo "gstack already installed at $GSTACK_DIR"
-fi
 
 # Register gbrain as an MCP server for Claude Code.
 #
@@ -352,7 +337,7 @@ if [ -z "${GBRAIN_MCP_TOKEN:-}" ] && [ -r "${GBRAIN_MCP_TOKEN_FILE:-}" ]; then
   GBRAIN_MCP_TOKEN=$(cat "$GBRAIN_MCP_TOKEN_FILE")
 fi
 
-if [ "${INSTALL_GBRAIN:-0}" = 1 ]; then
+if [ "${INSTALL_GBRAIN:-1}" != 0 ]; then
   # gbrain CLI (from the public git repo, via bun global)
   if command -v bun &>/dev/null && ! command -v gbrain &>/dev/null; then
     echo "Installing gbrain..."
@@ -373,12 +358,10 @@ if [ "${INSTALL_GBRAIN:-0}" = 1 ]; then
   systemctl --user daemon-reload &>/dev/null || true
 
   echo ""
-  echo "gstack/gbrain step done. To finish gbrain: ensure 'az login', run"
+  echo "gbrain step done. To finish it: ensure 'az login', run"
   echo "  ~/.gbrain/refresh-gbrain-db-url.sh --force && gbrain doctor"
   echo "and reconnect the gbrain MCP server in Claude Code (/mcp) so the pool cap takes effect."
 else
   echo ""
-  echo "Skipping gbrain (opt-in). To install it and register its MCP server:"
-  echo "  sudo INSTALL_GBRAIN=1 apt install --reinstall ./brent-install_<ver>.deb"
-  echo "  or: INSTALL_GBRAIN=1 /usr/share/brent-install/scripts/setup.sh"
+  echo "Skipping gbrain (INSTALL_GBRAIN=0)."
 fi

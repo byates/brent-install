@@ -42,7 +42,7 @@ fi
 # GBRAIN_MCP_*) never reached setup.sh before — pass them explicitly. The token
 # goes via a 0600 file rather than sudo's argv, where `ps` would show it for
 # the whole run.
-SETUP_ENV=(HOME="$USER_HOME" INSTALL_GBRAIN="${INSTALL_GBRAIN:-0}")
+SETUP_ENV=(HOME="$USER_HOME" INSTALL_GBRAIN="${INSTALL_GBRAIN:-1}")
 [ -n "${GBRAIN_MCP_MODE:-}" ] && SETUP_ENV+=(GBRAIN_MCP_MODE="$GBRAIN_MCP_MODE")
 [ -n "${GBRAIN_MCP_URL:-}" ] && SETUP_ENV+=(GBRAIN_MCP_URL="$GBRAIN_MCP_URL")
 if [ -n "${GBRAIN_MCP_TOKEN:-}" ]; then
