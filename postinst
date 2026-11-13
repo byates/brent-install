@@ -36,7 +36,20 @@ if ! command -v az >/dev/null 2>&1; then
   echo "  /usr/share/brent-install/scripts/install-azure-cli.sh"
 fi
 
-# 5. Run additional user script; run setup.sh as that user, preserving HOME.
+# 5. gbrain runs as a systemd USER service (gbrain-http.service). Linger keeps
+#    the user's systemd manager running without a login session, so the server
+#    survives logout and reboot, and setup.sh can drive `systemctl --user`
+#    from under sudo. Root-only, so it happens here.
+if [ "${INSTALL_GBRAIN:-1}" != 0 ]; then
+  if loginctl enable-linger "$REAL_USER"; then
+    USER_BUS="/run/user/$(id -u "$REAL_USER")/bus"
+    for _ in $(seq 1 15); do [ -S "$USER_BUS" ] && break; sleep 1; done
+  else
+    echo "WARN: loginctl enable-linger $REAL_USER failed; gbrain-http will only run while you're logged in."
+  fi
+fi
+
+# 6. Run additional user script; run setup.sh as that user, preserving HOME.
 #
 # sudo resets the environment, so the gbrain knobs (INSTALL_GBRAIN,
 # GBRAIN_MCP_*) never reached setup.sh before — pass them explicitly. The token

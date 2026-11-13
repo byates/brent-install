@@ -248,85 +248,143 @@ fi
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
+# How gbrain runs here: ONE local `gbrain serve --http` per host, as the
+# systemd user service gbrain-http.service on 127.0.0.1:8787, talking straight
+# to the shared Supabase brain. Agent sessions reach it over HTTP with a bearer
+# token minted locally. Per-session stdio servers each opened their own DB pool
+# and blew the Supabase session pooler's 15-client cap, so stdio is opt-in only.
+GBRAIN_HTTP_URL="http://127.0.0.1:8787/mcp"
+GBRAIN_HEALTH_URL="http://127.0.0.1:8787/health"
+
+# Make `systemctl --user` work when postinst runs us via `sudo -u`, which leaves
+# no XDG_RUNTIME_DIR / session bus. postinst enables linger first, so the user
+# manager is running even if nobody is logged in.
+user_systemd_ok() {
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+  systemctl --user show-environment &>/dev/null
+}
+
+gbrain_has_credentials() {
+  jq -e '(.database_url // "" | length > 0) and (.openai_api_key // "" | length > 0)' \
+    "$HOME/.gbrain/config.json" &>/dev/null
+}
+
+# Start (or restart, to pick up a new gbrain build or new credentials) the
+# local server and its liveness timer, then wait for /health. Up to 90s (the
+# unit's TimeoutStartSec): startup takes ~25s on a fresh host, more on a first
+# start against a brain whose schema needs checking.
+start_gbrain_http() {
+  if ! user_systemd_ok; then
+    echo "WARN: user systemd not reachable; start gbrain later with:"
+    echo "  systemctl --user daemon-reload && systemctl --user enable --now gbrain-http gbrain-http-liveness.timer"
+    return 1
+  fi
+  systemctl --user daemon-reload
+  systemctl --user enable gbrain-http.service &>/dev/null
+  systemctl --user restart gbrain-http.service
+  systemctl --user enable --now gbrain-http-liveness.timer &>/dev/null
+  echo -n "Waiting for gbrain-http on $GBRAIN_HEALTH_URL "
+  local deadline=$((SECONDS + 90))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if curl -fsS --max-time 2 -o /dev/null "$GBRAIN_HEALTH_URL" 2>/dev/null; then
+      echo "up."
+      return 0
+    fi
+    echo -n "."
+    sleep 2
+  done
+  echo " not answering."
+  echo "WARN: gbrain-http didn't come up; see: journalctl --user -u gbrain-http -n 50"
+  return 1
+}
+
 # Register gbrain as an MCP server for Claude Code.
 #
-# This used to unconditionally `claude mcp remove gbrain` then re-add it as a
-# stdio server. That is destructive: a box running gbrain as an HTTP service
-# (gbrain-http.service, `gbrain serve --http`) has an http registration whose
-# bearer token exists ONLY in ~/.claude.json — nothing under ~/.gbrain can
-# reconstruct it. Re-running setup.sh silently replaced that registration and
-# there was no way to put it back.
-#
-# So: an existing registration is never touched. Mode is selectable for fresh
-# installs via GBRAIN_MCP_MODE:
-#   auto  (default) keep any existing registration; otherwise probe for a live
-#         HTTP endpoint and use it when GBRAIN_MCP_TOKEN is available; else stdio
-#   stdio force a stdio server (`gbrain serve`) — self-contained, no service
-#   http  force http; requires GBRAIN_MCP_TOKEN, optional GBRAIN_MCP_URL
-#   none  skip MCP registration entirely
+# An existing registration is NEVER touched: an http registration's bearer
+# token exists only in ~/.claude.json, so replacing it is unrecoverable.
+# GBRAIN_MCP_MODE picks what a fresh install registers:
+#   auto   (default) the local server: mint a token for this host with
+#          `gbrain auth create`, then `gbrain connect --install`. Skipped (with
+#          instructions) if the server isn't up.
+#   http   an existing endpoint: GBRAIN_MCP_URL (default the local one) plus
+#          GBRAIN_MCP_TOKEN
+#   stdio  a per-session `gbrain serve` (not recommended; see above)
+#   none   register nothing
 GBRAIN_MCP_MODE="${GBRAIN_MCP_MODE:-auto}"
-GBRAIN_MCP_URL="${GBRAIN_MCP_URL:-http://127.0.0.1:8787/mcp}"
+
+# `gbrain connect --install` registers the server, smoke-tests the token, and
+# writes gbrain's brain-first block (~/.claude/CLAUDE.md) and turn hook. But it
+# registers at Claude Code's default LOCAL scope — the directory it ran in only
+# — and has no scope flag. So run it from $HOME, then move the entry to USER
+# scope so every project sees it. The token travels by environment variable to
+# gbrain; `claude mcp add` itself needs it as a header argument.
+connect_gbrain_user_scope() {
+  local url="$1" tok="$2"
+  (
+    cd "$HOME" || exit 1
+    GBRAIN_REMOTE_TOKEN="$tok" gbrain connect "$url" --agent claude-code --install --yes || exit 1
+    claude mcp remove gbrain -s local >/dev/null 2>&1 || true
+    claude mcp add --scope user gbrain -t http "$url" -H "Authorization: Bearer $tok" >/dev/null
+  )
+}
+GBRAIN_MCP_URL="${GBRAIN_MCP_URL:-$GBRAIN_HTTP_URL}"
 
 register_gbrain_mcp() {
+  local server_up="$1"
   if ! command -v claude &>/dev/null; then
-    echo "claude not found; skipping gbrain MCP registration (run it after installing Claude Code)."
+    echo "claude not found; skipping gbrain MCP registration (re-run setup after installing Claude Code)."
     return 0
   fi
-
   if [ "$GBRAIN_MCP_MODE" = "none" ]; then
     echo "GBRAIN_MCP_MODE=none; skipping gbrain MCP registration."
     return 0
   fi
-
-  # Never clobber what is already there.
-  if claude mcp get gbrain &>/dev/null; then
+  # Checked from $HOME: `claude mcp get` also sees local-scope entries for the
+  # current directory, which would make the answer depend on where we ran.
+  if (cd "$HOME" && claude mcp get gbrain &>/dev/null); then
     echo "gbrain MCP server already registered; leaving it untouched."
-    echo "  (to change it: claude mcp remove gbrain -s user, then re-run with GBRAIN_MCP_MODE=stdio|http)"
+    echo "  (to change it: claude mcp remove gbrain -s user, then re-run setup)"
     return 0
   fi
 
-  local mode="$GBRAIN_MCP_MODE"
-  if [ "$mode" = "auto" ]; then
-    # Positive probe: only choose http if the endpoint actually answers AND we
-    # have a token to talk to it with. Otherwise stdio, which needs neither.
-    # NB: do NOT use `curl -f` here. The MCP endpoint answers a plain GET with
-    # 405 Method Not Allowed, which -f treats as failure — so a perfectly
-    # healthy service probed as dead. Any HTTP status means something answered;
-    # only curl's own "000" (no response) means it did not.
-    local code=""
-    if [ -n "${GBRAIN_MCP_TOKEN:-}" ]; then
-      # `|| code=000` (not `|| echo 000`): curl already prints 000 on a failed
-      # connection, so echoing another would make $code the two-line "000\n000"
-      # — which is not equal to "000" and would read as alive.
-      code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$GBRAIN_MCP_URL" 2>/dev/null) || code=000
-    fi
-    if [ -n "$code" ] && [ "$code" != "000" ]; then
-      mode=http
-    else
-      mode=stdio
-    fi
-    echo "GBRAIN_MCP_MODE=auto resolved to '$mode'"
-  fi
-
-  case "$mode" in
+  case "$GBRAIN_MCP_MODE" in
+    auto)
+      if [ "$server_up" != 1 ]; then
+        echo "gbrain-http isn't up, so no MCP registration yet. Once it is, re-run setup."
+        return 0
+      fi
+      # Tokens live in the shared brain, so the name must be unique per host;
+      # fall back to a timestamped name if this host already minted one.
+      local name="claude-code-$(hostname -s)" out tok
+      out=$(gbrain auth create "$name" 2>&1) ||
+        { name="$name-$(date +%Y%m%d%H%M)"; out=$(gbrain auth create "$name" 2>&1); } ||
+        { echo "WARN: gbrain auth create failed: $out"; return 0; }
+      tok=$(printf '%s\n' "$out" | grep -oE 'gbrain_[A-Za-z0-9_-]{16,}' | head -1)
+      if [ -z "$tok" ]; then
+        echo "WARN: couldn't find the token in 'gbrain auth create' output; revoke '$name' and register manually."
+        return 0
+      fi
+      echo "Minted gbrain token '$name'; registering $GBRAIN_HTTP_URL with Claude Code..."
+      connect_gbrain_user_scope "$GBRAIN_HTTP_URL" "$tok" ||
+        echo "WARN: 'gbrain connect' failed. Revoke the token with: gbrain auth revoke \"$name\""
+      ;;
     http)
       if [ -z "${GBRAIN_MCP_TOKEN:-}" ]; then
         echo "WARN: GBRAIN_MCP_MODE=http but GBRAIN_MCP_TOKEN is unset; skipping."
-        echo "      Register manually: claude mcp add-json gbrain -s user '{\"type\":\"http\",...}'"
         return 0
       fi
       echo "Registering gbrain MCP server over HTTP ($GBRAIN_MCP_URL)..."
-      claude mcp add-json gbrain -s user \
-        "{\"type\":\"http\",\"url\":\"$GBRAIN_MCP_URL\",\"headers\":{\"Authorization\":\"Bearer $GBRAIN_MCP_TOKEN\"}}" \
-        || echo "WARN: http registration failed — register manually later"
+      connect_gbrain_user_scope "$GBRAIN_MCP_URL" "$GBRAIN_MCP_TOKEN" ||
+        echo "WARN: http registration failed — register manually later"
       ;;
     stdio)
       echo "Registering gbrain MCP server over stdio (GBRAIN_POOL_SIZE=2)..."
-      claude mcp add gbrain -s user -e GBRAIN_POOL_SIZE=2 -- "$(command -v gbrain || echo gbrain)" serve \
-        || echo "WARN: 'claude mcp add gbrain' failed — register manually later"
+      claude mcp add gbrain -s user -e GBRAIN_POOL_SIZE=2 -- "$(command -v gbrain || echo gbrain)" serve ||
+        echo "WARN: 'claude mcp add gbrain' failed — register manually later"
       ;;
     *)
-      echo "WARN: unknown GBRAIN_MCP_MODE='$mode' (want auto|stdio|http|none); skipping."
+      echo "WARN: unknown GBRAIN_MCP_MODE='$GBRAIN_MCP_MODE' (want auto|http|stdio|none); skipping."
       ;;
   esac
 }
@@ -344,23 +402,26 @@ if [ "${INSTALL_GBRAIN:-1}" != 0 ]; then
     bun add -g github:garrytan/gbrain || echo "WARN: gbrain install failed"
   fi
 
-  # Hydrate the gbrain DB URL from Azure Key Vault (no-op if already present;
-  # needs `az login` first — warns rather than failing the provision).
-  if [ -x "$HOME/.gbrain/refresh-gbrain-db-url.sh" ]; then
-    "$HOME/.gbrain/refresh-gbrain-db-url.sh" \
-      || echo "WARN: could not hydrate gbrain DB URL — run 'az login' then '~/.gbrain/refresh-gbrain-db-url.sh --force'"
+  # Credentials from Azure Key Vault (no-op if already present; needs `az login`).
+  "$HOME/.gbrain/refresh-gbrain-db-url.sh" ||
+    echo "WARN: could not hydrate gbrain credentials — run 'az login', then '~/.gbrain/refresh-gbrain-db-url.sh --force' and re-run setup"
+
+  server_up=0
+  if command -v gbrain &>/dev/null && gbrain_has_credentials; then
+    start_gbrain_http && server_up=1
+  else
+    echo "gbrain-http not started: needs the gbrain CLI and credentials in ~/.gbrain/config.json."
   fi
 
-  register_gbrain_mcp
-
-  # Apply the systemd pool-size drop-ins shipped in to_home_dir (best-effort:
-  # user systemd may be unavailable during package install — they apply on login).
-  systemctl --user daemon-reload &>/dev/null || true
+  register_gbrain_mcp "$server_up"
 
   echo ""
-  echo "gbrain step done. To finish it: ensure 'az login', run"
-  echo "  ~/.gbrain/refresh-gbrain-db-url.sh --force && gbrain doctor"
-  echo "and reconnect the gbrain MCP server in Claude Code (/mcp) so the pool cap takes effect."
+  if [ "$server_up" = 1 ]; then
+    echo "gbrain: local server up at $GBRAIN_HTTP_URL. Check with: gbrain doctor"
+    echo "Reconnect gbrain in running Claude Code sessions with /mcp."
+  else
+    echo "gbrain: not running yet (see the warnings above)."
+  fi
 else
   echo ""
   echo "Skipping gbrain (INSTALL_GBRAIN=0)."

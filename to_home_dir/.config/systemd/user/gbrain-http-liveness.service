@@ -1,0 +1,9 @@
+# Shipped by brent-install. Restarts gbrain-http when it is "active" but no
+# longer answers /health (a hung event loop that systemd's Restart= can't see).
+[Unit]
+Description=gbrain HTTP MCP server liveness probe
+After=gbrain-http.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/.gbrain/gbrain-http-liveness.sh

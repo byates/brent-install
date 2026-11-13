@@ -1,0 +1,31 @@
+# Shipped by brent-install. One shared local gbrain MCP server per host, bound
+# to loopback; every agent session connects to it over HTTP with a bearer token.
+# Per-session stdio servers each open their own DB pool and blew the shared
+# Supabase session pooler's 15-client cap (EMAXCONNSESSION), so don't use them.
+#
+# Credentials: ~/.gbrain/config.json (database_url = transaction pooler :6543,
+# openai key, embedding pin) and ~/.gbrain/http.env (GBRAIN_DIRECT_DATABASE_URL =
+# session pooler :5432), both hydrated from Key Vault by
+# ~/.gbrain/refresh-gbrain-db-url.sh.
+#
+# Pool size 3, not vm001's 6: every host shares the same 15-client pooler.
+# Change it per host with `systemctl --user edit gbrain-http` (a drop-in survives
+# package reinstalls; edits to this file do not).
+[Unit]
+Description=gbrain HTTP MCP server (single shared local instance for all agent sessions)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PATH=%h/.bun/bin:/usr/local/bin:/usr/bin:/bin
+Environment=GBRAIN_POOL_SIZE=3
+Environment=GBRAIN_SERVE_STALL_WATCHDOG_MS=60000
+EnvironmentFile=-%h/.gbrain/http.env
+ExecStart=%h/.bun/bin/bun %h/.bun/bin/gbrain serve --http --port 8787 --bind 127.0.0.1
+Restart=always
+RestartSec=3
+TimeoutStartSec=90
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,10 @@
+# Shipped by brent-install. Runs the gbrain-http liveness probe once a minute.
+[Unit]
+Description=gbrain HTTP MCP server liveness probe (every minute)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

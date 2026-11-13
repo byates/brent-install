@@ -49,7 +49,7 @@ export PKG_CONFIG_PATH=~/tools/${DPDK_VER}/build/meson-private:$PKG_CONFIG_PATH
 # Cap gbrain's postgres.js connection pool (default 10) so interactive gbrain
 # commands don't burst the shared Supabase session pooler and trip Supavisor's
 # circuit breaker. See gbrain src/core/db.ts:resolvePoolSize(). The MCP server
-# and systemd sync timers set this independently (claude.json env + drop-ins).
+# (gbrain-http.service) and sync timers set their own (unit env + drop-ins).
 export GBRAIN_POOL_SIZE=2
 
 # OPENAI_API_KEY for gbrain embeddings (0600 file populated from Azure KV by

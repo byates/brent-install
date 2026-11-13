@@ -42,12 +42,13 @@ A Debian package that bootstraps a development environment with dotfiles, Neovim
     processes keep a working agent. Do **not** hardcode that path elsewhere in `.bashrc`
     without an `[ -S ... ]` guard — a stale symlink there breaks the agent in every shell.
 - `.config/systemd/user/gbrain-*.service.d/pool-size.conf` - systemd drop-ins capping gbrain's DB pool (survive `/setup-gbrain` regeneration)
-- `.gbrain/refresh-gbrain-db-url.sh` - Hydrates the gbrain DB URL from Azure Key Vault into `~/.gbrain/config.json`
+- `.config/systemd/user/gbrain-http.service` - The host's single local gbrain MCP server (`127.0.0.1:8787`), plus `gbrain-http-liveness.{service,timer}` and `.gbrain/gbrain-http-liveness.sh`, which restart it if `/health` stops answering
+- `.gbrain/refresh-gbrain-db-url.sh` - Hydrates gbrain's credentials from Azure Key Vault into `~/.gbrain/config.json` and `~/.gbrain/http.env`
 
 ## gbrain
 
-gbrain is **on by default**. To skip it — no gbrain CLI, no DB credential
-hydration, no MCP registration (an existing install is left alone) — install with:
+gbrain is **on by default**. To skip it — no gbrain CLI, no credentials, no
+server, no MCP registration (an existing install is left alone) — install with:
 
 ```bash
 sudo INSTALL_GBRAIN=0 apt install ./brent-install_*.deb
@@ -55,62 +56,85 @@ sudo INSTALL_GBRAIN=0 apt install ./brent-install_*.deb
 
 gstack is not installed by this package.
 
-### MCP registration
+### How it runs
 
-With gbrain enabled, `setup.sh` registers it as an MCP server for Claude Code. It **never touches
-an existing registration** — on a box running gbrain as an HTTP service the
-bearer token lives only in `~/.claude.json` and cannot be reconstructed from
-anything in `~/.gbrain`, so an unconditional re-register was unrecoverable.
+Each host runs **one** local gbrain server, `gbrain-http.service` (a systemd
+*user* service, `gbrain serve --http` on `127.0.0.1:8787`), which talks straight
+to the shared Supabase brain. Every Claude Code session on the host connects to
+it over HTTP with a bearer token minted on that host. Don't use per-session
+stdio servers: each one opens its own DB pool, and together they blew the
+Supabase session pooler's 15-client cap (`EMAXCONNSESSION`).
 
-Fresh installs pick a transport via `GBRAIN_MCP_MODE`:
+An install with gbrain enabled:
+
+1. installs the gbrain CLI (bun, from the public `garrytan/gbrain` repo);
+2. hydrates credentials from Key Vault (below);
+3. enables linger for the user (postinst, as root) so the service survives
+   logout and reboot, then starts `gbrain-http` and its once-a-minute liveness
+   timer and waits for `/health`;
+4. if Claude Code has no `gbrain` MCP entry yet, mints a token with
+   `gbrain auth create claude-code-<hostname>` and registers it at **user**
+   scope via `gbrain connect --install`. That also writes gbrain's brain-first
+   block into `~/.claude/CLAUDE.md` and a `UserPromptSubmit` hook.
+
+Pool size is 3 per host (`GBRAIN_POOL_SIZE` in the unit; vm001 runs 6). All
+hosts share one 15-client pooler, so check the total before raising it. To
+change it on one host: `systemctl --user edit gbrain-http`.
+
+### Credentials (Azure Key Vault)
+
+Secrets are never committed. `~/.gbrain/refresh-gbrain-db-url.sh` reads three
+secrets from `swx-mr-master-dev-kv`:
+
+| Secret | What it is | Written to |
+| --- | --- | --- |
+| `gbrain-db-url` | Supabase **transaction** pooler URL (`:6543`), main traffic | `config.json` `database_url` |
+| `gbrain-direct-db-url` | Supabase **session** pooler URL (`:5432`), DDL and advisory locks | `http.env` `GBRAIN_DIRECT_DATABASE_URL` |
+| `openai-api-key` | OpenAI key for embeddings | `config.json` `openai_api_key` |
+
+It also pins `engine: postgres` and `embedding_model: openai:text-embedding-3-large`
+/ `embedding_dimensions: 1536`, which must match the brain. `az` has to be
+installed and logged in first:
+
+```bash
+/usr/share/brent-install/scripts/install-azure-cli.sh
+az login --tenant 29fc2961-3afa-4f23-97fe-795c7749efdf
+sudo apt install --reinstall ./brent-install_*.deb   # or re-run setup.sh
+gbrain doctor
+```
+
+After a rotation, update the KV secret once, then on each host run
+`~/.gbrain/refresh-gbrain-db-url.sh --force && systemctl --user restart gbrain-http`.
+
+### MCP registration modes
+
+Setup **never touches an existing `gbrain` MCP entry**: its bearer token lives only
+in `~/.claude.json`, so replacing it would be unrecoverable. To change one, run
+`claude mcp remove gbrain -s user` and re-run setup. `GBRAIN_MCP_MODE` picks what
+a fresh install registers:
 
 | Mode | Behavior |
 | --- | --- |
-| `auto` (default) | Keep any existing registration. Otherwise use HTTP when `GBRAIN_MCP_TOKEN` is set *and* `GBRAIN_MCP_URL` actually answers; else stdio. |
-| `stdio` | Force a stdio server (`gbrain serve`). Self-contained — no service, no token. |
-| `http` | Force HTTP. Requires `GBRAIN_MCP_TOKEN`; `GBRAIN_MCP_URL` defaults to `http://127.0.0.1:8787/mcp`. |
-| `none` | Skip MCP registration entirely. |
+| `auto` (default) | The local `gbrain-http` server, with a token minted for this host. Skipped if the server isn't up. |
+| `http` | Some other endpoint: `GBRAIN_MCP_URL` (default the local one) plus `GBRAIN_MCP_TOKEN`. |
+| `stdio` | A per-session `gbrain serve`. Not recommended; see above. |
+| `none` | Register nothing. |
 
 ```bash
-# fresh box, plain stdio (the simple default)
-sudo dpkg -i brent-install_*.deb
-
-# fresh box that should talk to a running gbrain-http.service
-sudo GBRAIN_MCP_MODE=http GBRAIN_MCP_TOKEN=gbrain_xxx dpkg -i brent-install_*.deb
+sudo GBRAIN_MCP_MODE=http GBRAIN_MCP_URL=http://host:8787/mcp GBRAIN_MCP_TOKEN=gbrain_xxx apt install ./brent-install_*.deb
 ```
 
-To change an existing registration, remove it first:
-`claude mcp remove gbrain -s user`, then re-run with the mode you want.
-
-### gbrain DB credential (one manual step, when enabled)
-
-Secrets are never committed. The gbrain DB credential lives in Azure Key Vault
-(`swx-mr-master-dev-kv`, secret `gbrain-db-url` — the full Supabase session-pooler
-URL). After installing the package, authenticate once so the credential can be
-hydrated:
-
-```bash
-az login --tenant 29fc2961-3afa-4f23-97fe-795c7749efdf
-~/.gbrain/refresh-gbrain-db-url.sh --force   # writes ~/.gbrain/config.json
-gbrain doctor                                # expect: connection Connected
-```
-
-After a DB password rotation, update the `gbrain-db-url` KV secret once, then run
-`~/.gbrain/refresh-gbrain-db-url.sh --force` on each machine. Reconnect the gbrain
-MCP server in Claude Code (`/mcp`) so the `GBRAIN_POOL_SIZE=2` cap takes effect.
-
-> Why the pool cap: gbrain's postgres.js client defaults to 10 connections per
-> process; with the MCP server, the daily sync timers, and the CLI all sharing one
-> Supabase session pooler, bursts can trip Supavisor's circuit breaker. Capping at
-> 2 (in `.jby_bashrc.sh`, the systemd drop-ins, and the MCP server env) prevents it.
+The token goes from postinst to setup in a 0600 temp file, and from setup to
+gbrain through the environment, so it never sits in `ps` for the run. It does
+land in your shell history if you type it as above.
 
 ## Installation
 
 Download and install the latest release:
 
 ```bash
-wget https://github.com/byates/brent-install/releases/download/v1.6.0/brent-install_1.6.0.deb
-sudo apt install ./brent-install_1.6.0.deb
+wget https://github.com/byates/brent-install/releases/download/v1.7.0/brent-install_1.7.0.deb
+sudo apt install ./brent-install_1.7.0.deb
 /usr/share/brent-install/scripts/install-azure-cli.sh   # if az isn't installed yet
 ```
 
@@ -122,7 +146,7 @@ The post-install script runs automatically to configure your environment.
 git clone https://github.com/byates/brent-install.git
 cd brent-install
 make build
-sudo apt install ./brent-install_1.6.0.deb
+sudo apt install ./brent-install_1.7.0.deb
 ```
 
 ### Make Targets
